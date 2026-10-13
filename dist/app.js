@@ -19,7 +19,7 @@ const spatialExample=`# Spatial receptive-field mapping.
 import random
 
 # Replace this with the preferred orientation from Exercise 2.
-orientation = 0
+orientation = 120
 step = 0.4
 size = 0.22
 repetitions = 2
@@ -41,7 +41,7 @@ for repeat in range(repetitions):
 blank(duration=1.0)`;
 const protocolExamples={two:orientationExample,three:spatialExample};
 let protocolExercise=location.hash==='#exercise-3'?'three':'two';
-function protocolKey(exercise){return`visual-rig-protocol-v2-${exercise}`;}
+function protocolKey(exercise){return`visual-rig-protocol-v3-${exercise}`;}
 function loadProtocolForExercise(exercise){if(!protocolExamples[exercise])return;protocolExercise=exercise;let saved='';try{saved=localStorage.getItem(protocolKey(exercise))||'';}catch{}$('code').value=(saved||protocolExamples[exercise]).replace('; no installation needed.','.');}
 window.loadProtocolForExercise=loadProtocolForExercise;loadProtocolForExercise(protocolExercise);
 $('code').value=$('code').value.replace('; no installation needed.','.');
@@ -84,11 +84,9 @@ $('stopProtocol').onclick=()=>{if(compiling)cancelCompile();send('stop');};
 $('record').onclick=()=>{if(recording){$('record').disabled=true;send('stopRecord');return;}if(saved&&!confirm('Replace the previous recording? Download it first if you want to keep it.'))return;
   $('record').disabled=true;send('record',{name:$('session').value.trim()||'orientation-tuning',code:$('code').value});};
 $('download').onclick=()=>{$('download').disabled=true;send('export');};
-const rfMenu=$('rfMenu'),toggleRF=$('toggleRF'),rigIndicator=document.querySelector('.live');
-function closeRFMenu(){rfMenu.hidden=true;}
-function setRFRevealed(value){$('reveal').checked=value;$('showCameraRF').checked=value;drawRF();window.refreshVisualInput?.();toggleRF.textContent=value?'Hide RF':'Reveal RF';}
-rigIndicator.addEventListener('contextmenu',e=>{e.preventDefault();toggleRF.textContent=$('showCameraRF').checked?'Hide RF':'Reveal RF';rfMenu.hidden=false;const box=rfMenu.getBoundingClientRect();rfMenu.style.left=Math.max(6,Math.min(e.clientX,innerWidth-box.width-6))+'px';rfMenu.style.top=Math.max(6,Math.min(e.clientY,innerHeight-box.height-6))+'px';});
-toggleRF.onclick=()=>{setRFRevealed(!$('showCameraRF').checked);closeRFMenu();};
+function setRFRevealed(value){$('reveal').checked=value;$('showCameraRF').checked=value;drawRF();window.refreshVisualInput?.();}
+let rfKeyTimes=[];
+document.addEventListener('keydown',e=>{const target=e.target,editing=target.matches?.('input,textarea,select')||target.isContentEditable;if(editing||e.repeat||e.ctrlKey||e.altKey||e.metaKey||e.key.toLowerCase()!=='r')return;const now=performance.now();rfKeyTimes=rfKeyTimes.filter(time=>now-time<900);rfKeyTimes.push(now);if(rfKeyTimes.length===3){setRFRevealed(!$('showCameraRF').checked);rfKeyTimes=[];}});
 function classicClick(){const now=audioCtx.currentTime,osc=audioCtx.createOscillator(),gain=audioCtx.createGain();osc.frequency.value=1600;gain.gain.setValueAtTime(.075,now);gain.gain.exponentialRampToValueAtTime(.0001,now+.028);osc.connect(gain);gain.connect(audioCtx.destination);osc.onended=()=>{osc.disconnect();gain.disconnect();};osc.start(now);osc.stop(now+.03);}
 function softSpike(){const fs=audioCtx.sampleRate,buffer=audioCtx.createBuffer(1,Math.round(fs*.008),fs),samples=buffer.getChannelData(0),width=.00055;for(let i=0;i<samples.length;i++){const t=i/fs;samples[i]=-Math.exp(-.5*((t-.0025)/width)**2)+.45*Math.exp(-.5*((t-.00349)/(1.4*width))**2);}const source=audioCtx.createBufferSource(),filter=audioCtx.createBiquadFilter(),gain=audioCtx.createGain();source.buffer=buffer;filter.type='lowpass';filter.frequency.value=600;gain.gain.value=.1*(.85+Math.random()*.3);source.connect(filter).connect(gain).connect(audioCtx.destination);source.onended=()=>{source.disconnect();filter.disconnect();gain.disconnect();};source.start();}
 function audioClick(){if(!sound||!audioCtx||audioCtx.state!=='running')return;(audioVoice==='soft'?softSpike:classicClick)();}
@@ -103,10 +101,10 @@ function updateAudioMenu(){for(const button of audioMenu.querySelectorAll('butto
 audioButton.onclick=async()=>{closeAudioMenu();sound=!sound;audioButton.innerHTML=sound?'<span aria-hidden="true">🔊</span> Sound on':'<span aria-hidden="true">🔇</span> Sound off';audioButton.setAttribute('aria-pressed',String(sound));if(sound)await unlockAudio();else stopAudioKeepalive();};
 audioButton.addEventListener('contextmenu',e=>{e.preventDefault();updateAudioMenu();audioMenu.hidden=false;const box=audioMenu.getBoundingClientRect();audioMenu.style.left=Math.max(6,Math.min(e.clientX,innerWidth-box.width-6))+'px';audioMenu.style.top=Math.max(6,Math.min(e.clientY,innerHeight-box.height-6))+'px';});
 audioMenu.onclick=async e=>{const button=e.target.closest('[data-sound]');if(!button)return;audioVoice=button.dataset.sound;try{localStorage.setItem('visual-rig-sound',audioVoice);}catch{}closeAudioMenu();if(sound){await unlockAudio();audioClick();}};
-document.addEventListener('pointerdown',e=>{if(!audioMenu.hidden&&!audioMenu.contains(e.target))closeAudioMenu();if(!rfMenu.hidden&&!rfMenu.contains(e.target))closeRFMenu();});
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeAudioMenu();closeRFMenu();}});
+document.addEventListener('pointerdown',e=>{if(!audioMenu.hidden&&!audioMenu.contains(e.target))closeAudioMenu();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeAudioMenu();});
 function drawRF(){const c=$('rf'),ctx=c.getContext('2d');ctx.fillStyle='#0b1620';ctx.fillRect(0,0,180,120);if(!$('reveal').checked){ctx.fillStyle='#9cabb9';ctx.font='11px system-ui';ctx.textAlign='center';ctx.fillText('Receptive field hidden',90,60);$('modelInfo').textContent='One simulated neuron. Infer its selectivity from stimulus responses.';return;}
-  $('modelInfo').textContent='Two Gabor filters in quadrature → energy → stochastic spikes. Preferred bars: 60°. The grid shows the two filter components.';
+  $('modelInfo').textContent='Two Gabor filters in quadrature → energy → stochastic spikes. Preferred bars: 120°. The grid shows the two filter components.';
   for(let q=0;q<2;q++){const im=ctx.createImageData(72,48);for(let i=0;i<modelDisplay.kernel.length;i++){const k=modelDisplay.kernel[i],v=k.env*(q?k.b:k.a),a=Math.abs(v);im.data[4*i]=Math.round(27+a*(v>0?223:30));im.data[4*i+1]=Math.round(38+a*65);im.data[4*i+2]=Math.round(51+a*(v>0?40:204));im.data[4*i+3]=255;}const off=document.createElement('canvas');off.width=72;off.height=48;off.getContext('2d').putImageData(im,0,0);ctx.imageSmoothingEnabled=false;ctx.drawImage(off,q*90,17,90,80);}
   ctx.fillStyle='#9cabb9';ctx.font='9px system-ui';ctx.textAlign='center';ctx.fillText('cosine',45,112);ctx.fillText('sine',135,112);
 }
