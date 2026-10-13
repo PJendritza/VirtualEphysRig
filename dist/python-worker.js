@@ -3,7 +3,8 @@ async function load(){postMessage({type:'status',message:'Loading browser Python
 const helpers=`
 import json
 _segments = []
-def grating(orientation=0, duration=1, contrast=1, spatial_frequency=5, temporal_frequency=2, phase=0, x=0, y=0, radius=0.9):
+def grating(orientation=0, duration=1, contrast=1, spatial_frequency=5, temporal_frequency=2, phase=0, x=0, y=0, radius=0.9, size=None):
+    if size is not None: radius = size
     _segments.append({'duration': duration, 'stimulus': {'type': 'grating', 'orientation': orientation, 'contrast': contrast, 'spatial_frequency': spatial_frequency, 'temporal_frequency': temporal_frequency, 'phase': phase, 'x': x, 'y': y, 'radius': radius}})
     if len(_segments) > 1000: raise ValueError('Maximum 1,000 segments.')
 def bar(orientation=0, duration=1, contrast=1, x=0, y=0, width=0.16, length=1.2):

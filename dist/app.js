@@ -1,22 +1,51 @@
 'use strict';
 const $=id=>document.getElementById(id);
-const example=`# Orientations × repetitions.
+const orientationExample=`# Orientations × repetitions.
 import random
 
 orientations = [0, 30, 60, 90, 120, 150]
+size = 1.0
 
-for repeat in range(3):
+for repeat in range(5):
     random.shuffle(orientations)
     for angle in orientations:
         blank(duration=0.5)
         grating(orientation=angle, duration=1.0,
-                contrast=1.0, spatial_frequency=5,
-                temporal_frequency=2)
+                spatial_frequency=5, temporal_frequency=2,
+                size=size)
 
 blank(duration=1.0)`;
-try{$('code').value=localStorage.getItem('visual-rig-protocol')||example;}catch{$('code').value=example;}
+const spatialExample=`# Spatial receptive-field mapping.
+import random
+
+# Replace this with the preferred orientation from Exercise 2.
+orientation = 0
+step = 0.4
+size = 0.22
+repetitions = 2
+
+x_positions = [-1.2 + i * step for i in range(int(2.4 / step) + 1)]
+y_positions = [-0.8 + i * step for i in range(int(1.6 / step) + 1)]
+positions = [(x, y) for y in y_positions for x in x_positions]
+
+for repeat in range(repetitions):
+    order = positions[:]
+    random.shuffle(order)  # Comment out this line for an ordered scan.
+    for x, y in order:
+        blank(duration=0.25)
+        grating(orientation=orientation, duration=0.6,
+                spatial_frequency=5,
+                temporal_frequency=2, x=x, y=y,
+                size=size)
+
+blank(duration=1.0)`;
+const protocolExamples={two:orientationExample,three:spatialExample};
+let protocolExercise=location.hash==='#exercise-3'?'three':'two';
+function protocolKey(exercise){return`visual-rig-protocol-v2-${exercise}`;}
+function loadProtocolForExercise(exercise){if(!protocolExamples[exercise])return;protocolExercise=exercise;let saved='';try{saved=localStorage.getItem(protocolKey(exercise))||'';}catch{}$('code').value=(saved||protocolExamples[exercise]).replace('; no installation needed.','.');}
+window.loadProtocolForExercise=loadProtocolForExercise;loadProtocolForExercise(protocolExercise);
 $('code').value=$('code').value.replace('; no installation needed.','.');
-$('code').addEventListener('input',()=>{try{localStorage.setItem('visual-rig-protocol',$('code').value);}catch{}});
+$('code').addEventListener('input',()=>{try{localStorage.setItem(protocolKey(protocolExercise),$('code').value);}catch{}});
 $('code').addEventListener('keydown',e=>{if(e.key==='Tab'){e.preventDefault();const p=e.target.selectionStart;e.target.setRangeText('    ',p,e.target.selectionEnd,'end');}});
 const monitor=$('monitor'),mc=monitor.getContext('2d'),image=mc.createImageData(180,120),imageCanvas=document.createElement('canvas');imageCanvas.width=180;imageCanvas.height=120;const ic=imageCanvas.getContext('2d');
 const trace=$('trace'),tc=trace.getContext('2d');const scope=new LiveScope(20000);
@@ -32,7 +61,7 @@ function manual(){if(compiling)cancelCompile();send('stimulus',{stimulus:manualS
 for(const id of ['orientation','gratingSize','frequency','speed','barWidth','barLength'])$(id).addEventListener('input',()=>{updateControls();if(stim.type!=='blank')manual();});$('stimulusKind').onchange=()=>{updateControls();if(stim.type!=='blank')manual();};
 $('present').onclick=()=>{if(stim.type==='blank')manual();else{if(compiling)cancelCompile();send('stimulus',{stimulus:{type:'blank'}});}};
 let stimulusDrag=false;function moveStimulus(e){const r=monitor.getBoundingClientRect();position={x:Math.max(-1.5,Math.min(1.5,(e.clientX-r.left)/r.width*3-1.5)),y:Math.max(-1,Math.min(1,(e.clientY-r.top)/r.height*2-1))};manual();}monitor.addEventListener('pointerdown',e=>{if(stim.type==='blank')return;stimulusDrag=true;monitor.setPointerCapture(e.pointerId);moveStimulus(e);});monitor.addEventListener('pointermove',e=>{if(stimulusDrag)moveStimulus(e);});monitor.addEventListener('pointerup',()=>stimulusDrag=false);monitor.addEventListener('pointercancel',()=>stimulusDrag=false);monitor.addEventListener('wheel',e=>{e.preventDefault();$('orientation').value=(Number($('orientation').value)+(e.deltaY<0?5:-5)+180)%180;updateControls();if(stim.type!=='blank')manual();},{passive:false});
-$('example').onclick=()=>{$('code').value=example;try{localStorage.setItem('visual-rig-protocol',example);}catch{}};
+$('example').onclick=()=>{const example=protocolExamples[protocolExercise]||orientationExample;$('code').value=example;try{localStorage.setItem(protocolKey(protocolExercise),example);}catch{}};
 function validate(segments){if(!Array.isArray(segments)||!segments.length)throw Error('Your code did not call grating() or blank().');if(segments.length>1000)throw Error('Maximum 1,000 segments.');let duration=0;
   const number=(v,name,min,max)=>{if(typeof v!=='number'||!Number.isFinite(v)||v<min||v>max)throw Error(`${name} must be a number between ${min} and ${max}.`);return v;};
   for(const seg of segments){seg.duration=Math.round(number(seg.duration,'duration',.001,120)*1000)/1000;duration+=seg.duration;const s=seg.stimulus;if(!s||!['blank','grating','bar'].includes(s.type))throw Error('Unknown stimulus type.');
@@ -53,8 +82,13 @@ $('run').onclick=()=>{if(compiling)return;const submittedCode=$('code').value;co
 };
 $('stopProtocol').onclick=()=>{if(compiling)cancelCompile();send('stop');};
 $('record').onclick=()=>{if(recording){$('record').disabled=true;send('stopRecord');return;}if(saved&&!confirm('Replace the previous recording? Download it first if you want to keep it.'))return;
-  $('record').disabled=true;send('record',{name:$('session').value.trim()||'session-01',code:$('code').value});};
+  $('record').disabled=true;send('record',{name:$('session').value.trim()||'orientation-tuning',code:$('code').value});};
 $('download').onclick=()=>{$('download').disabled=true;send('export');};
+const rfMenu=$('rfMenu'),toggleRF=$('toggleRF'),rigIndicator=document.querySelector('.live');
+function closeRFMenu(){rfMenu.hidden=true;}
+function setRFRevealed(value){$('reveal').checked=value;$('showCameraRF').checked=value;drawRF();window.refreshVisualInput?.();toggleRF.textContent=value?'Hide RF':'Reveal RF';}
+rigIndicator.addEventListener('contextmenu',e=>{e.preventDefault();toggleRF.textContent=$('showCameraRF').checked?'Hide RF':'Reveal RF';rfMenu.hidden=false;const box=rfMenu.getBoundingClientRect();rfMenu.style.left=Math.max(6,Math.min(e.clientX,innerWidth-box.width-6))+'px';rfMenu.style.top=Math.max(6,Math.min(e.clientY,innerHeight-box.height-6))+'px';});
+toggleRF.onclick=()=>{setRFRevealed(!$('showCameraRF').checked);closeRFMenu();};
 function classicClick(){const now=audioCtx.currentTime,osc=audioCtx.createOscillator(),gain=audioCtx.createGain();osc.frequency.value=1600;gain.gain.setValueAtTime(.075,now);gain.gain.exponentialRampToValueAtTime(.0001,now+.028);osc.connect(gain);gain.connect(audioCtx.destination);osc.onended=()=>{osc.disconnect();gain.disconnect();};osc.start(now);osc.stop(now+.03);}
 function softSpike(){const fs=audioCtx.sampleRate,buffer=audioCtx.createBuffer(1,Math.round(fs*.008),fs),samples=buffer.getChannelData(0),width=.00055;for(let i=0;i<samples.length;i++){const t=i/fs;samples[i]=-Math.exp(-.5*((t-.0025)/width)**2)+.45*Math.exp(-.5*((t-.00349)/(1.4*width))**2);}const source=audioCtx.createBufferSource(),filter=audioCtx.createBiquadFilter(),gain=audioCtx.createGain();source.buffer=buffer;filter.type='lowpass';filter.frequency.value=600;gain.gain.value=.1*(.85+Math.random()*.3);source.connect(filter).connect(gain).connect(audioCtx.destination);source.onended=()=>{source.disconnect();filter.disconnect();gain.disconnect();};source.start();}
 function audioClick(){if(!sound||!audioCtx||audioCtx.state!=='running')return;(audioVoice==='soft'?softSpike:classicClick)();}
@@ -69,8 +103,8 @@ function updateAudioMenu(){for(const button of audioMenu.querySelectorAll('butto
 audioButton.onclick=async()=>{closeAudioMenu();sound=!sound;audioButton.innerHTML=sound?'<span aria-hidden="true">🔊</span> Sound on':'<span aria-hidden="true">🔇</span> Sound off';audioButton.setAttribute('aria-pressed',String(sound));if(sound)await unlockAudio();else stopAudioKeepalive();};
 audioButton.addEventListener('contextmenu',e=>{e.preventDefault();updateAudioMenu();audioMenu.hidden=false;const box=audioMenu.getBoundingClientRect();audioMenu.style.left=Math.max(6,Math.min(e.clientX,innerWidth-box.width-6))+'px';audioMenu.style.top=Math.max(6,Math.min(e.clientY,innerHeight-box.height-6))+'px';});
 audioMenu.onclick=async e=>{const button=e.target.closest('[data-sound]');if(!button)return;audioVoice=button.dataset.sound;try{localStorage.setItem('visual-rig-sound',audioVoice);}catch{}closeAudioMenu();if(sound){await unlockAudio();audioClick();}};
-document.addEventListener('pointerdown',e=>{if(!audioMenu.hidden&&!audioMenu.contains(e.target))closeAudioMenu();});
-document.addEventListener('keydown',e=>{if(e.key==='Escape')closeAudioMenu();});
+document.addEventListener('pointerdown',e=>{if(!audioMenu.hidden&&!audioMenu.contains(e.target))closeAudioMenu();if(!rfMenu.hidden&&!rfMenu.contains(e.target))closeRFMenu();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeAudioMenu();closeRFMenu();}});
 function drawRF(){const c=$('rf'),ctx=c.getContext('2d');ctx.fillStyle='#0b1620';ctx.fillRect(0,0,180,120);if(!$('reveal').checked){ctx.fillStyle='#9cabb9';ctx.font='11px system-ui';ctx.textAlign='center';ctx.fillText('Receptive field hidden',90,60);$('modelInfo').textContent='One simulated neuron. Infer its selectivity from stimulus responses.';return;}
   $('modelInfo').textContent='Two Gabor filters in quadrature → energy → stochastic spikes. Preferred bars: 60°. The grid shows the two filter components.';
   for(let q=0;q<2;q++){const im=ctx.createImageData(72,48);for(let i=0;i<modelDisplay.kernel.length;i++){const k=modelDisplay.kernel[i],v=k.env*(q?k.b:k.a),a=Math.abs(v);im.data[4*i]=Math.round(27+a*(v>0?223:30));im.data[4*i+1]=Math.round(38+a*65);im.data[4*i+2]=Math.round(51+a*(v>0?40:204));im.data[4*i+3]=255;}const off=document.createElement('canvas');off.width=72;off.height=48;off.getContext('2d').putImageData(im,0,0);ctx.imageSmoothingEnabled=false;ctx.drawImage(off,q*90,17,90,80);}
@@ -83,8 +117,8 @@ worker.onmessage=e=>{const m=e.data;
     if(stim.type==='bar'){$('stimulusKind').value='bar';$('barWidth').value=stim.width;$('barLength').value=stim.length;$('orientation').value=((stim.orientation%180)+180)%180;position={x:stim.x,y:stim.y};updateControls();}
     if(stim.type==='grating'){$('stimulusKind').value='grating';$('orientation').value=((stim.orientation%180)+180)%180;$('gratingSize').value=Math.round(stim.radius*100);$('frequency').value=stim.spatial_frequency;$('speed').value=stim.temporal_frequency;position={x:stim.x,y:stim.y};updateControls();}}
   if(m.type==='protocol'){if(['stopped','completed'].includes(m.status)){protocolRunning=false;$('stopProtocol').disabled=!compiling;message(m.status==='completed'?'Protocol complete.':'Protocol stopped.');}else message('Protocol segment '+m.status+(recording?' · recording':''));}
-  if(m.type==='recording'){recording=m.active;saved=!recording;$('record').disabled=false;$('record').textContent=recording?'■ Stop recording':'● Start recording';$('download').disabled=recording||!saved;$('recBadge').textContent=recording?'● RECORDING':'RECORDING READY';$('recBadge').style.color=recording?'#ffab84':'#75dcc3';$('recStatus').textContent=recording?'Recording raw voltage and every stimulus change. Limit: 5 minutes. Keep this tab visible.':m.auto?'Five-minute limit reached. Your recording is ready to download.':'Recording stopped. Download the ZIP before closing this tab.';}
-  if(m.type==='export'){const encoder=new TextEncoder(),json=x=>encoder.encode(JSON.stringify(x,null,2)),zip=recordingZip([['voltage.bin',m.binary],['metadata.json',json(m.metadata)],['stimuli.json',json(m.stimuli)],['camera_frames.json',json(m.cameraFrames||[])]]);const url=URL.createObjectURL(zip),a=document.createElement('a');a.href=url;a.download=(m.metadata.session.replace(/[^a-zA-Z0-9_-]/g,'_')||'recording')+'_'+m.metadata.created_utc.replace(/[:.]/g,'-')+'.zip';a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);$('download').disabled=false;$('recStatus').textContent='Download requested. The ZIP contains raw voltage, metadata, and stimulus intervals.';}
+  if(m.type==='recording'){recording=m.active;saved=!recording;$('record').disabled=false;$('record').textContent=recording?'■ Stop recording':'● Start recording';$('download').disabled=recording||!saved;$('recBadge').textContent=recording?'● RECORDING':'READY';$('recBadge').style.color=recording?'#ffab84':'#75dcc3';$('recStatus').textContent=recording?'Recording in progress · maximum 5 minutes.':m.auto?'Five-minute limit reached. Ready to download.':'Recording stopped. Ready to download.';}
+  if(m.type==='export'){const encoder=new TextEncoder(),json=x=>encoder.encode(JSON.stringify(x,null,2)),zip=recordingZip([['voltage.bin',m.binary],['metadata.json',json(m.metadata)],['stimuli.json',json(m.stimuli)],['camera_frames.json',json(m.cameraFrames||[])]]);const url=URL.createObjectURL(zip),a=document.createElement('a');a.href=url;a.download=(m.metadata.session.replace(/[^a-zA-Z0-9_-]/g,'_')||'recording')+'_'+m.metadata.created_utc.replace(/[:.]/g,'-')+'.zip';a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);$('download').disabled=false;$('recStatus').textContent='Download requested.';}
   if(m.type==='error'){$('record').disabled=false;$('download').disabled=recording||!saved;message(m.message,true);}
 };
 worker.onerror=()=>{$('rigStatus').textContent='Acquisition error';message('The recording worker could not start. Reload the page.',true);};
@@ -93,7 +127,7 @@ window.addEventListener('beforeunload',e=>{if(recording||saved){e.preventDefault
 function drawMonitor(){const s=stim,th=(s.orientation||0)*Math.PI/180,phase=(s.phase||0)*Math.PI/180+2*Math.PI*(s.temporal_frequency||0)*(clock-stimOnset);
   for(let j=0;j<120;j++)for(let i=0;i<180;i++){let v=128;if(s.type==='bar'){const x=(i+.5)/180*3-1.5-s.x,y=(j+.5)/120*2-1-s.y,q=-Math.sin(th)*x+Math.cos(th)*y,p=Math.cos(th)*x+Math.sin(th)*y;if(Math.abs(q)<=s.width/2&&Math.abs(p)<=s.length/2)v=Math.round(127.5*(1-s.contrast));}else if(s.type==='grating'){const x=(i+.5)/180*3-1.5-s.x,y=(j+.5)/120*2-1-s.y;if(x*x+y*y<=s.radius*s.radius){const q=-Math.sin(th)*x+Math.cos(th)*y;v=Math.round(127.5+127.5*s.contrast*Math.cos(Math.PI*s.spatial_frequency*q+phase));}}const n=(j*180+i)*4;image.data[n]=image.data[n+1]=image.data[n+2]=v;image.data[n+3]=255;}
   ic.putImageData(image,0,0);mc.imageSmoothingEnabled=true;mc.drawImage(imageCanvas,0,0,600,400);
-  if($('reveal').checked&&$('inputSource').value==='direct'){mc.strokeStyle='#65e2c7';mc.lineWidth=1.5;mc.setLineDash([5,5]);mc.beginPath();mc.ellipse(300,200,90,90,0,0,Math.PI*2);mc.stroke();mc.setLineDash([]);mc.fillStyle='#06261ec9';mc.fillRect(9,9,98,21);mc.fillStyle='#96f8df';mc.font='11px system-ui';mc.fillText('RF center shown',16,24);}}
+  if($('reveal').checked&&$('inputSource').value==='direct'){const m=cameraRFModel,cx=(m.x+1.5)/3*600,cy=(m.y+1)/2*400,rx=Math.max(12,2*m.sigma/(m.aspect||1)*200),ry=Math.max(12,2*m.sigma*200),rotation=(m.orientation||0)*Math.PI/180;mc.strokeStyle='#65e2c7';mc.lineWidth=1.5;mc.setLineDash([5,5]);mc.beginPath();mc.ellipse(cx,cy,rx,ry,rotation,0,Math.PI*2);mc.stroke();mc.setLineDash([]);mc.fillStyle='#06261ec9';mc.fillRect(9,9,98,21);mc.fillStyle='#96f8df';mc.font='11px system-ui';mc.fillText('RF center shown',16,24);}}
 let lastDraw=0,displayStarted=false,displayError='';
 function frame(now){requestAnimationFrame(frame);if(hidden||now-lastDraw<=30)return;try{drawMonitor();if($('inputSource').value==='direct')window.refreshVisualInput?.();drawTrace();lastDraw=now;if(displayError){displayError='';$('rigStatus').textContent='Rig running';}}catch(err){if(displayError!==err.message){displayError=err.message;$('rigStatus').textContent='Display error';$('scopeStatus').textContent='Display error: '+err.message;}}}
 function startDisplay(){if(displayStarted)return;displayStarted=true;updateControls();$('rigStatus').textContent='Rig running';requestAnimationFrame(frame);}

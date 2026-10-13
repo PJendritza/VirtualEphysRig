@@ -9,7 +9,7 @@ onmessage=e=>{const m=e.data;try{
   if(m.type==='stimulus'){engine.stopProtocol(false);engine.setStimulus(m.stimulus);}
   if(m.type==='protocol')engine.startProtocol(m.segments,m.code);
   if(m.type==='stop')engine.stopProtocol();
-  if(m.type==='exerciseProfile'){if(m.exercise==='one'){engine.configureModel(exerciseOneModel(),{exercise:'one'});engine.setInputSource('webcam');}else if(m.exercise==='two'){engine.configureModel(exerciseTwoModel(),{exercise:'two'});engine.setInputSource('webcam');}else{engine.configureModel(new NeuronEngine().model,{exercise:'debug'});engine.setInputSource('direct');}postMessage({type:'exerciseReady',exercise:m.exercise});}
+  if(m.type==='exerciseProfile'){if(m.exercise==='one'){engine.configureModel(exerciseOneModel(),{exercise:'one'});engine.setInputSource('webcam');}else if(m.exercise==='two'){engine.configureModel(exerciseTwoModel(),{exercise:'two'});engine.setInputSource('webcam');}else if(m.exercise==='three'){engine.configureModel(exerciseThreeModel(),{exercise:'three'});engine.setInputSource('webcam');}postMessage({type:'exerciseReady',exercise:m.exercise});}
   if(m.type==='inputSource')engine.setInputSource(m.source);
   if(m.type==='cameraFrame'){const result=engine.cameraFrame(m.gray,m.timing);postMessage({type:'cameraMetrics',...result});}
   if(m.type==='cameraSettings')engine.setCameraSettings(m.settings);
