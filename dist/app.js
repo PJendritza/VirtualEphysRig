@@ -20,7 +20,7 @@ $('code').addEventListener('input',()=>{try{localStorage.setItem('visual-rig-pro
 $('code').addEventListener('keydown',e=>{if(e.key==='Tab'){e.preventDefault();const p=e.target.selectionStart;e.target.setRangeText('    ',p,e.target.selectionEnd,'end');}});
 const monitor=$('monitor'),mc=monitor.getContext('2d'),image=mc.createImageData(180,120),imageCanvas=document.createElement('canvas');imageCanvas.width=180;imageCanvas.height=120;const ic=imageCanvas.getContext('2d');
 const trace=$('trace'),tc=trace.getContext('2d');const scope=new LiveScope(20000);
-let clock=0,spikes=[],stim={type:'blank'},stimOnset=0,recording=false,saved=false,protocolRunning=false,compiling=false,pythonWorker=null,compileTimer=null,loadTimer=null,audioCtx=null,sound=true,hidden=false,position={x:0,y:0};
+let clock=0,spikes=[],stim={type:'blank'},stimOnset=0,recording=false,saved=false,protocolRunning=false,compiling=false,pythonWorker=null,compileTimer=null,loadTimer=null,audioCtx=null,audioKeepalive=null,sound=true,hidden=false,position={x:0,y:0};
 const worker=new Worker('acquisition-worker.js');
 const modelDisplay=new NeuronEngine();let cameraRFModel={...modelDisplay.model};
 function send(type,data={}){worker.postMessage({type,...data});}
@@ -54,11 +54,13 @@ $('stopProtocol').onclick=()=>{if(compiling)cancelCompile();send('stop');};
 $('record').onclick=()=>{if(recording){$('record').disabled=true;send('stopRecord');return;}if(saved&&!confirm('Replace the previous recording? Download it first if you want to keep it.'))return;
   $('record').disabled=true;send('record',{name:$('session').value.trim()||'session-01',code:$('code').value});};
 $('download').onclick=()=>{$('download').disabled=true;send('export');};
-function audioClick(){if(!sound||!audioCtx||audioCtx.state!=='running')return;const now=audioCtx.currentTime,osc=audioCtx.createOscillator(),gain=audioCtx.createGain();osc.frequency.value=1600;gain.gain.setValueAtTime(.07,now);gain.gain.exponentialRampToValueAtTime(.0001,now+.012);osc.connect(gain);gain.connect(audioCtx.destination);osc.start(now);osc.stop(now+.013);}
-async function unlockAudio(){try{if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();await audioCtx.resume();}catch{message('Sound is unavailable in this browser.',true);}}
-document.addEventListener('pointerdown',()=>{if(sound)unlockAudio();},{once:true,capture:true});
-document.addEventListener('keydown',()=>{if(sound)unlockAudio();},{once:true,capture:true});
-$('audio').onclick=async()=>{sound=!sound;if(sound)await unlockAudio();$('audio').textContent=sound?'Sound on':'Sound off';};
+function audioClick(){if(!sound||!audioCtx||audioCtx.state!=='running')return;const now=audioCtx.currentTime,osc=audioCtx.createOscillator(),gain=audioCtx.createGain();osc.frequency.value=1600;gain.gain.setValueAtTime(.075,now);gain.gain.exponentialRampToValueAtTime(.0001,now+.028);osc.connect(gain);gain.connect(audioCtx.destination);osc.onended=()=>{osc.disconnect();gain.disconnect();};osc.start(now);osc.stop(now+.03);}
+function startAudioKeepalive(){if(audioKeepalive||!audioCtx)return;const osc=audioCtx.createOscillator(),gain=audioCtx.createGain();osc.frequency.value=90;gain.gain.value=.00001;osc.connect(gain);gain.connect(audioCtx.destination);osc.start();audioKeepalive={osc,gain};}
+function stopAudioKeepalive(){if(!audioKeepalive)return;audioKeepalive.osc.stop();audioKeepalive.osc.disconnect();audioKeepalive.gain.disconnect();audioKeepalive=null;}
+async function unlockAudio(){if(!sound)return;try{if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();if(audioCtx.state!=='running')await audioCtx.resume();if(sound&&audioCtx.state==='running')startAudioKeepalive();}catch{message('Sound is unavailable in this browser.',true);}}
+document.addEventListener('pointerdown',()=>{if(sound&&audioCtx?.state!=='running')unlockAudio();},{capture:true});
+document.addEventListener('keydown',()=>{if(sound&&audioCtx?.state!=='running')unlockAudio();},{capture:true});
+$('audio').onclick=async()=>{sound=!sound;$('audio').innerHTML=sound?'<span aria-hidden="true">🔊</span> Sound on':'<span aria-hidden="true">🔇</span> Sound off';$('audio').setAttribute('aria-pressed',String(sound));if(sound)await unlockAudio();else stopAudioKeepalive();};
 function drawRF(){const c=$('rf'),ctx=c.getContext('2d');ctx.fillStyle='#0b1620';ctx.fillRect(0,0,180,120);if(!$('reveal').checked){ctx.fillStyle='#9cabb9';ctx.font='11px system-ui';ctx.textAlign='center';ctx.fillText('Receptive field hidden',90,60);$('modelInfo').textContent='One simulated neuron. Infer its selectivity from stimulus responses.';return;}
   $('modelInfo').textContent='Two Gabor filters in quadrature → energy → stochastic spikes. Preferred bars: 60°. The grid shows the two filter components.';
   for(let q=0;q<2;q++){const im=ctx.createImageData(72,48);for(let i=0;i<modelDisplay.kernel.length;i++){const k=modelDisplay.kernel[i],v=k.env*(q?k.b:k.a),a=Math.abs(v);im.data[4*i]=Math.round(27+a*(v>0?223:30));im.data[4*i+1]=Math.round(38+a*65);im.data[4*i+2]=Math.round(51+a*(v>0?40:204));im.data[4*i+3]=255;}const off=document.createElement('canvas');off.width=72;off.height=48;off.getContext('2d').putImageData(im,0,0);ctx.imageSmoothingEnabled=false;ctx.drawImage(off,q*90,17,90,80);}
