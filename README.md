@@ -1,6 +1,8 @@
 # VirtualEphysRig
 
-Browser-based simulated visual electrophysiology rig for teaching. This repository contains the current source, including the waveform Clear control and audio startup fix. The [Visual Neuron Rig Site](https://visual-neuron-rig.pjendritza.chatgpt.site/) may still be on an earlier published version.
+Browser-based simulated visual electrophysiology rig for teaching.
+
+[Open the current Visual Neuron Lab Site](https://visual-neuron-rig-updated.pjendritza.chatgpt.site/)
 
 ## Run locally
 
@@ -16,6 +18,10 @@ Open http://localhost:8000/#exercise-1. Camera access requires HTTPS or localhos
 
 - **Exercise 1:** Explore a simulated dark-bar simple cell with webcam stimuli.
 - **Exercise 2:** Present bars or gratings to study orientation tuning.
-- **Instructor / Debug:** Inspect the model and export raw recordings.
+- **Exercise 3:** Map the neuron's spatial receptive field with gratings presented at different positions.
 
-The source includes the docked and floating stimulus monitor and visual input, receptive-field overlay, live trace, waveform view, viewing filters, spike sound, and recording export in Debug mode.
+The source includes docked and floating stimulus and camera views, a hidden receptive-field overlay, a live trace, waveform inspection, viewing filters, selectable spike sounds, experiment recording, and resizable panels.
+
+## Project status
+
+This is ongoing work. The interface, exercises, and data formats may change as the teaching materials are developed and tested.
