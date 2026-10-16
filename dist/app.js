@@ -19,7 +19,7 @@ const spatialExample=`# Spatial receptive-field mapping.
 import random
 
 # Replace this with the preferred orientation from Exercise 2.
-orientation = 120
+orientation = 0
 step = 0.4
 size = 0.22
 repetitions = 2
@@ -42,7 +42,7 @@ blank(duration=1.0)`;
 const protocolExamples={two:orientationExample,three:spatialExample};
 let protocolExercise=location.hash==='#exercise-3'?'three':'two';
 function protocolKey(exercise){return`visual-rig-protocol-v3-${exercise}`;}
-function loadProtocolForExercise(exercise){if(!protocolExamples[exercise])return;protocolExercise=exercise;let saved='';try{saved=localStorage.getItem(protocolKey(exercise))||'';}catch{}$('code').value=(saved||protocolExamples[exercise]).replace('; no installation needed.','.');}
+function loadProtocolForExercise(exercise){if(!protocolExamples[exercise])return;protocolExercise=exercise;let saved='';try{saved=localStorage.getItem(protocolKey(exercise))||'';}catch{}if(exercise==='three'&&saved===spatialExample.replace('orientation = 0','orientation = 120'))saved=spatialExample;$('code').value=(saved||protocolExamples[exercise]).replace('; no installation needed.','.');}
 window.loadProtocolForExercise=loadProtocolForExercise;loadProtocolForExercise(protocolExercise);
 $('code').value=$('code').value.replace('; no installation needed.','.');
 $('code').addEventListener('input',()=>{try{localStorage.setItem(protocolKey(protocolExercise),$('code').value);}catch{}});

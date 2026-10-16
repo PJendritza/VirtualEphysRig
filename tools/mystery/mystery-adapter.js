@@ -12,7 +12,7 @@ function isImageAvailable(name){return assets.has(name)&&(!instructorSamples.has
 const example=`# Images × positions × repetitions.
 import random
 
-filenames = ["Grating 1", "Grating 2"]
+filenames = ["grating_1.png", "grating_2.png"]
 step = 0.6
 size = 0.6
 repetitions = 2
@@ -30,13 +30,16 @@ for repeat in range(repetitions):
 
 blank(duration=1.0)`;
 protocolExamples.three=example;protocolExercise='three';loadProtocolForExercise('three');
-$('code').value=$('code').value.replace(/(["'])grating_1\.png\1/g,'"Grating 1"').replace(/(["'])grating_2\.png\1/g,'"Grating 2"');
+$('code').value=$('code').value.replace(/(["'])Grating 1\1/g,'"grating_1.png"').replace(/(["'])Grating 2\1/g,'"grating_2.png"');
+// Keep both built-in files in an existing grating-only example, preserving its
+// other settings and any protocols using student-uploaded files.
+$('code').value=$('code').value.replace(/^filenames\s*=\s*\[([^\]\n]*)\]/m,(line,items)=>{const names=[...items.matchAll(/["']([^"']+)["']/g)].map(m=>m[1]);return names.length&&names.every(name=>['grating_1.png','grating_2.png'].includes(name))?'filenames = ["grating_1.png", "grating_2.png"]':line;});
 function rebuildGallery(){const select=$('imageChoice'),gallery=$('imageGallery'),chosen=select.value;select.replaceChildren();gallery.replaceChildren();for(const [name,a]of assets){if(!isImageAvailable(name))continue;const o=document.createElement('option');o.value=name;o.textContent=name;select.append(o);const b=document.createElement('button');b.type='button';b.title=name;const img=document.createElement('img');img.src=a.src;img.alt='';const label=document.createElement('div');label.textContent=name;b.append(img,label);b.onclick=()=>{select.value=name;select.onchange();};b.oncontextmenu=e=>{e.preventDefault();openFileMenu(name,e.clientX,e.clientY);};b.onkeydown=e=>{if(e.key==='Delete'){e.preventDefault();removeAsset(name);}};gallery.append(b);}if(isImageAvailable(chosen))select.value=chosen;syncGallery();$('fileCount').textContent=select.options.length+' images';$('restoreImages').disabled=recording||!removedAssets.size;$('present').disabled=!select.options.length;}
 function syncGallery(){[...$('imageGallery').children].forEach(b=>b.setAttribute('aria-pressed',String(b.title===$('imageChoice').value)));}
 function addAsset(name,img){let unique=name,index=2;while(assets.has(unique))unique=name.replace(/(\.[^.]+)?$/,(_,ext)=>'_'+index+++(ext||''));assets.set(unique,img);return unique;}
-async function sample(name,paint){const c=document.createElement('canvas');c.width=c.height=256;const ctx=c.getContext('2d');ctx.fillStyle='#808080';ctx.fillRect(0,0,256,256);paint(ctx);const img=new Image();img.src=c.toDataURL('image/png');await img.decode();addAsset(name,img);if(!/^Grating [12]$/.test(name))instructorSamples.add(img);}
+async function sample(name,paint){const c=document.createElement('canvas');c.width=c.height=256;const ctx=c.getContext('2d');ctx.fillStyle='#808080';ctx.fillRect(0,0,256,256);paint(ctx);const img=new Image();img.src=c.toDataURL('image/png');await img.decode();addAsset(name,img);if(!/^grating_[12]\.png$/.test(name))instructorSamples.add(img);}
 async function samples(){
-  for(const [name,angle]of [['Grating 1',0],['Grating 2',120]])await sample(name,c=>{c.save();c.beginPath();c.arc(128,128,110,0,Math.PI*2);c.clip();c.translate(128,128);c.rotate(angle*Math.PI/180);for(let y=-190;y<190;y++){const v=Math.round(127.5+127.5*Math.cos(y/256*10*Math.PI));c.fillStyle=`rgb(${v},${v},${v})`;c.fillRect(-190,y,380,1);}c.restore();});
+  for(const [name,angle]of [['grating_1.png',0],['grating_2.png',120]])await sample(name,c=>{c.save();c.beginPath();c.arc(128,128,110,0,Math.PI*2);c.clip();c.translate(128,128);c.rotate(angle*Math.PI/180);for(let y=-190;y<190;y++){const v=Math.round(127.5+127.5*Math.cos(y/256*10*Math.PI));c.fillStyle=`rgb(${v},${v},${v})`;c.fillRect(-190,y,380,1);}c.restore();});
   for(const [name,color]of [['yellow','#ffdf00'],['blue','#2560ef'],['red','#ef3030'],['green','#25d655'],['cyan','#00dede'],['magenta','#e930db']])await sample(name+'_disk.png',c=>{c.fillStyle=color;c.beginPath();c.arc(128,128,78,0,Math.PI*2);c.fill();});
   for(const kind of ['arch','line','circle'])await sample('dark_'+kind+'.png',c=>{c.strokeStyle='#141414';c.lineWidth=18;c.lineCap='round';c.beginPath();if(kind==='line'){c.moveTo(42,128);c.lineTo(214,128);}else c.arc(128,kind==='arch'?160:128,78,Math.PI,kind==='arch'?Math.PI*2:Math.PI*3);c.stroke();});
   await facePortrait.decode();addAsset('face_1.png',facePortrait);instructorSamples.add(facePortrait);
