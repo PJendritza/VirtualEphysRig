@@ -16,7 +16,8 @@ class NeuronEngine {
       const x=(i+.5)/72*3-1.5,y=(j+.5)/48*2-1,dx=x-m.x,dy=y-m.y;
       const q=-Math.sin(th)*dx+Math.cos(th)*dy,p=Math.cos(th)*dx+Math.sin(th)*dy;
       const env=Math.exp(-(q*q+m.aspect*m.aspect*p*p)/(2*m.sigma*m.sigma)),arg=Math.PI*m.spatial_frequency*q;
-      this.kernel.push({x,y,env,a:Math.cos(arg),b:Math.sin(arg),center:env,left:Math.exp(-(((q+(m.flank_offset||.19))**2+m.aspect*m.aspect*p*p)/(2*m.sigma*m.sigma))),right:Math.exp(-(((q-(m.flank_offset||.19))**2+m.aspect*m.aspect*p*p)/(2*m.sigma*m.sigma)))});this.envSum+=env;
+      const rectangular=m.simple_rf&&m.type==='V1 simple dark-bar cell',stripe=offset=>Math.abs(q-offset)<=m.bar_width/2&&Math.abs(p)<=m.bar_length/2?1:0;
+      this.kernel.push({x,y,env,a:Math.cos(arg),b:Math.sin(arg),center:rectangular?stripe(0):env,left:rectangular?stripe(-(m.flank_offset||.19)):Math.exp(-(((q+(m.flank_offset||.19))**2+m.aspect*m.aspect*p*p)/(2*m.sigma*m.sigma))),right:rectangular?stripe(m.flank_offset||.19):Math.exp(-(((q-(m.flank_offset||.19))**2+m.aspect*m.aspect*p*p)/(2*m.sigma*m.sigma)))});this.envSum+=env;
     }
     this.barCenterSum=this.kernel.reduce((s,k)=>s+k.center,0);this.barLeftSum=this.kernel.reduce((s,k)=>s+k.left,0);this.barRightSum=this.kernel.reduce((s,k)=>s+k.right,0);
     this.cameraEnergyA=this.kernel.reduce((s,k)=>s+k.env*k.a*k.a,0);this.cameraEnergyB=this.kernel.reduce((s,k)=>s+k.env*k.b*k.b,0);
