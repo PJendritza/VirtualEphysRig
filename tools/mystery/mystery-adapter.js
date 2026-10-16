@@ -42,7 +42,7 @@ async function samples(){
   for(const [name,angle]of [['grating_1.png',0],['grating_2.png',120]])await sample(name,c=>{c.save();c.beginPath();c.arc(128,128,110,0,Math.PI*2);c.clip();c.translate(128,128);c.rotate(angle*Math.PI/180);for(let y=-190;y<190;y++){const v=Math.round(127.5+127.5*Math.cos(y/256*10*Math.PI));c.fillStyle=`rgb(${v},${v},${v})`;c.fillRect(-190,y,380,1);}c.restore();});
   for(const [name,color]of [['yellow','#ffdf00'],['blue','#2560ef'],['red','#ef3030'],['green','#25d655'],['cyan','#00dede'],['magenta','#e930db']])await sample(name+'_disk.png',c=>{c.fillStyle=color;c.beginPath();c.arc(128,128,78,0,Math.PI*2);c.fill();});
   for(const kind of ['arch','line','circle'])await sample('dark_'+kind+'.png',c=>{c.strokeStyle='#141414';c.lineWidth=18;c.lineCap='round';c.beginPath();if(kind==='line'){c.moveTo(42,128);c.lineTo(214,128);}else c.arc(128,kind==='arch'?160:128,78,Math.PI,kind==='arch'?Math.PI*2:Math.PI*3);c.stroke();});
-  await facePortrait.decode();addAsset('face_1.png',facePortrait);instructorSamples.add(facePortrait);
+  await facePortrait.decode();addAsset('face_1.png',facePortrait);instructorSamples.add(facePortrait);updateField();
   rebuildGallery();$('present').disabled=false;$('run').disabled=false;
 }
 $('imageFiles').onchange=async e=>{if(recording){$('imageStatus').textContent='Stop recording before adding images.';return;}for(const file of e.target.files){try{if(assets.size>=50)throw Error('Maximum 50 images.');if(!['image/png','image/jpeg','image/webp'].includes(file.type)||file.size>20e6)throw Error('Use PNG, JPEG or WebP below 20 MB.');const url=URL.createObjectURL(file),img=new Image();try{img.src=url;await img.decode();if(img.width*img.height>32e6)throw Error('Image exceeds 32 megapixels.');addAsset(file.name,img);}catch(err){URL.revokeObjectURL(url);throw err;}}catch(err){$('imageStatus').textContent=file.name+': '+err.message;}}rebuildGallery();e.target.value='';};
@@ -58,12 +58,23 @@ window.mysteryInput=async(canvas,timing={})=>{const now=performance.now();if(now
 };
 // Draw model sensitivity over a clean input copy; never feed this overlay back.
 const field=document.createElement('canvas');field.width=120;field.height=80;
-function updateField(){const ctx=field.getContext('2d'),im=ctx.createImageData(120,80),m=MODEL[model];
-  const weights=new Float32Array(9600);
+function updateField(){
+  const m=MODEL[model];
+  if(model==='face'){
+    field.width=600;field.height=400;const ctx=field.getContext('2d');
+    if(facePortrait.complete&&facePortrait.naturalWidth){
+      const portrait=document.createElement('canvas');portrait.width=portrait.height=256;const p=portrait.getContext('2d');
+      p.drawImage(facePortrait,0,0,256,256);p.globalCompositeOperation='destination-in';
+      const fade=p.createRadialGradient(128,128,46,128,128,128);fade.addColorStop(0,'rgba(0,0,0,1)');fade.addColorStop(1,'rgba(0,0,0,0)');p.fillStyle=fade;p.fillRect(0,0,256,256);
+      const radius=m.sx*200,cx=(m.x+1.5)*200,cy=(m.y+1)*200;ctx.drawImage(portrait,cx-radius,cy-radius,radius*2,radius*2);
+    }
+    return;
+  }
+  field.width=120;field.height=80;const ctx=field.getContext('2d'),im=ctx.createImageData(120,80),weights=new Float32Array(9600);
   if(model==='curve'){for(const f of curveFilters)for(const [i,c]of f.entries)weights[i]-=c;const max=Math.max(...weights.map(Math.abs));for(let i=0;i<weights.length;i++)weights[i]/=max||1;}
-  for(let j=0;j<80;j++)for(let i=0;i<120;i++){const n=j*120+i,x=(i+.5)/120*3-1.5,y=(j+.5)/80*2-1,v=model==='curve'?weights[n]:Math.exp(-.5*(((x-m.x)/m.sx)**2+((y-m.y)/m.sy)**2));const rgb=model==='color'?[255,220,0]:model==='face'?[110,235,205]:v<0?[30,110,255]:[255,125,60];im.data.set([...rgb,Math.round(Math.abs(v)*205)],n*4);}ctx.putImageData(im,0,0);
+  for(let j=0;j<80;j++)for(let i=0;i<120;i++){const n=j*120+i,x=(i+.5)/120*3-1.5,y=(j+.5)/80*2-1,value=model==='curve'?weights[n]:Math.exp(-.5*(((x-m.x)/m.sx)**2+((y-m.y)/m.sy)**2)),strength=Math.abs(value),rgb=model==='color'?[255,220,0]:[0,0,0];im.data.set([...rgb,strength<.07?0:Math.round(strength*255)],n*4);}ctx.putImageData(im,0,0);
 }
-window.mysteryOverlay=ctx=>{if(!$('showCameraRF').checked)return;ctx.save();ctx.imageSmoothingEnabled=true;ctx.drawImage(field,0,0,600,400);if(model==='face'){ctx.strokeStyle='#e3fff4';ctx.lineWidth=2;ctx.beginPath();ctx.arc(300,200,MODEL.face.sx*200,0,Math.PI*2);ctx.stroke();if(facePortrait.complete&&facePortrait.naturalWidth){ctx.save();ctx.beginPath();const radius=MODEL.face.sx*200;ctx.arc(300,200,radius,0,Math.PI*2);ctx.clip();ctx.globalAlpha=.9;ctx.drawImage(facePortrait,300-radius,200-radius,radius*2,radius*2);ctx.restore();}}ctx.fillStyle='#07121ae6';ctx.fillRect(8,8,570,24);ctx.fillStyle='#d9f6ed';ctx.font='12px system-ui';ctx.textAlign='left';ctx.fillText(model==='color'?'RF: yellow preference · Gaussian spatial sensitivity':model==='curve'?'RF: dark-sensitive arc (blue)':'RF: centered Gaussian face-location sensitivity · portrait is only a marker',15,24);ctx.restore();};
+window.mysteryOverlay=ctx=>{if(!$('showCameraRF').checked)return;ctx.save();ctx.imageSmoothingEnabled=true;ctx.drawImage(field,0,0,600,400);if(model!=='face'){ctx.fillStyle='#07121ae6';ctx.fillRect(8,8,570,24);ctx.fillStyle='#d9f6ed';ctx.font='12px system-ui';ctx.textAlign='left';ctx.fillText(model==='color'?'RF: yellow preference · Gaussian spatial sensitivity':'RF: dark-sensitive arc',15,24);}ctx.restore();};
 function chooseModel(){if(recording){$('mysteryType').value=model;return;}if(compiling)cancelCompile();send('stop',{preserveStimulus:true});model=$('mysteryType').value;faceEpoch++;send('mysteryModel',{model,parameters:MODEL[model],epoch:faceEpoch});$('session').value='MysteryNeuron'+(['color','curve','face'].indexOf(model)+1);updateField();updateMysteryLabels();window.refreshVisualInput?.();if(model==='face')ensureFace().then(()=>{if(model==='face')faceStatus('Face detector ready. Upload human face images to test.');}).catch(e=>faceStatus(e.message,true));else faceStatus('Pixel-driven '+model+' model. Triple-R toggles reveal mode.');}
 $('mysteryType').onchange=chooseModel;
 const originalWorkerMessage=worker.onmessage;worker.onmessage=e=>{originalWorkerMessage(e);if(e.data.type==='recording'){const locked=e.data.active;$('mysteryType').disabled=locked;$('imageFiles').disabled=locked;$('uploadImages').disabled=locked;$('restoreImages').disabled=locked||!removedAssets.size;closeFileMenu();$('inputSource').disabled=locked;}};

@@ -103,8 +103,8 @@ audioButton.addEventListener('contextmenu',e=>{e.preventDefault();updateAudioMen
 audioMenu.onclick=async e=>{const button=e.target.closest('[data-sound]');if(!button)return;audioVoice=button.dataset.sound;try{localStorage.setItem('visual-rig-sound',audioVoice);}catch{}closeAudioMenu();if(sound){await unlockAudio();audioClick();}};
 document.addEventListener('pointerdown',e=>{if(!audioMenu.hidden&&!audioMenu.contains(e.target))closeAudioMenu();});
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeAudioMenu();});
-// Pure black/white RF lobes; alpha is 90% times normalized magnitude.
-// Values below 5% of peak magnitude are fully transparent.
+// Pure black/white RF lobes; alpha follows normalized magnitude up to 100%.
+// Values below 7% of peak magnitude are fully transparent.
 // This affects the reveal drawing only, not the neuron's actual filter.
 const rfImageCache=new Map();
 function drawReceptiveFieldOverlay(context,m,width=600,height=400){
@@ -112,7 +112,7 @@ function drawReceptiveFieldOverlay(context,m,width=600,height=400){
   let canvas=rfImageCache.get(key);
   if(!canvas){canvas=document.createElement('canvas');canvas.width=300;canvas.height=200;const c=canvas.getContext('2d'),pixels=c.createImageData(300,200),weights=new Float32Array(60000),theta=m.orientation*Math.PI/180;let peak=0;
     for(let j=0;j<200;j++)for(let i=0;i<300;i++){const dx=(i+.5)/300*3-1.5-m.x,dy=(j+.5)/200*2-1-m.y,q=-Math.sin(theta)*dx+Math.cos(theta)*dy,p=Math.cos(theta)*dx+Math.sin(theta)*dy,env=Math.exp(-(q*q+m.aspect*m.aspect*p*p)/(2*m.sigma*m.sigma)),arg=Math.PI*m.spatial_frequency*q,value=env*(m.type==='V1 simple Gabor cell'?Math.sin(arg):Math.cos(arg));weights[j*300+i]=value;peak=Math.max(peak,Math.abs(value));}
-    const simple=m.type==='V1 simple Gabor cell',cutoff=simple?.07:.05,peakAlpha=simple?1:.90;
+    const cutoff=.07,peakAlpha=1;
     for(let i=0;i<weights.length;i++){const value=weights[i]/(peak||1),shade=value>=0?255:0;pixels.data[i*4]=pixels.data[i*4+1]=pixels.data[i*4+2]=shade;pixels.data[i*4+3]=Math.abs(value)<cutoff?0:Math.round(peakAlpha*255*Math.abs(value));}
     c.putImageData(pixels,0,0);if(rfImageCache.size>16)rfImageCache.clear();rfImageCache.set(key,canvas);
   }
