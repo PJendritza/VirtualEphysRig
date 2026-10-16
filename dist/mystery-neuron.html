@@ -46,6 +46,7 @@ body:is([data-exercise=two],[data-exercise=three]) .cameraViewport{position:stic
 #stimulusWindow::before,#stimulusWindow::after{display:none}.monitorStand{width:82px;height:19px;margin:-31px auto 18px;position:relative;background:linear-gradient(90deg,transparent 33px,#52616a 33px,#52616a 49px,transparent 49px)}.monitorStand::after{content:'';position:absolute;left:0;bottom:0;width:82px;height:7px;border-radius:5px 5px 2px 2px;background:linear-gradient(#61717a,#26343d);box-shadow:0 4px 8px #0008}body:has(#stimulusWindow.floatingMonitor) .monitorStand{display:none}
 
 /* Experiment recording lives with the trace; RF reveal is a hidden keyboard shortcut. */
+.recordingSummary{display:flex;align-items:center;justify-content:flex-end;gap:12px;flex-wrap:wrap}.recordingSummary #deleteRecording{padding:6px 9px;font-size:11px}
 .scopeRecording{border-top:1px solid var(--border);margin-top:16px;padding-top:14px}.recordHeading{display:flex;align-items:center;justify-content:space-between;gap:12px}.recordHeading h3{margin:0}.scopeRecording .sessionline{border-top:0;margin-top:10px;padding-top:0}.scopeRecording .actions{margin-bottom:5px}body:is([data-exercise=two],[data-exercise=three]) #recordControls{display:block!important}body:is([data-exercise=two],[data-exercise=three]) #recBadge{display:inline-block!important}
 
 /* Prototype 14: the drag icon becomes a Dock control only while floating. */
@@ -95,8 +96,8 @@ header .live{justify-self:end}.modeControls{display:grid;grid-template-columns:2
 <div class="thresholdTools"><label class="inlineLabel">Threshold<input id="threshold" type="number" step="1" value="-45" aria-label="Spike threshold in microvolts"> µV</label><label class="inlineLabel">Factor<input id="thresholdFactor" type="number" min="2" max="10" step="0.5" value="4.5"> σ</label><button id="autoThresholdNow" class="ghost">Auto threshold</button></div>
 <details class="scopeSettings"><summary>Custom filter · instant · viewing only</summary><div class="scopeTools"><label>High-pass (Hz)<input id="highpass" type="number" min="0" max="9000" value="300"></label><label>Low-pass (Hz)<input id="lowpass" type="number" min="0" max="9900" value="6000"></label></div><p class="hint">Causal 2nd-order high/low-pass filters. Set a cutoff to 0 to disable it. The threshold follows the displayed signal.</p></details>
 <p id="scopeStatus" class="hint" role="status">Drag the threshold line, or Shift-click the trace. Wheel: X zoom; Shift-wheel: Y zoom. Raw recording is unaffected. Waveform view: wheel zooms X, Shift-wheel zooms Y, drag pans.</p>
-<div id="recordControls" class="scopeRecording"><div class="recordHeading"><h3>Record this experiment</h3><span id="recBadge" class="badge">READY</span></div><div class="sessionline"><label>Data name<input id="session" value="orientation-tuning" maxlength="48" aria-label="Data name"></label><div class="recnumbers"><strong id="recTime">0.0 s</strong><span id="recSize">0 samples · 0 MB</span></div></div>
-<div class="actions"><button id="record" class="record" aria-pressed="false">● Start recording</button><button id="download" class="secondary" disabled>Download recording</button></div><div id="lastRecording" hidden><p id="lastRecordingInfo" class="hint"></p><div class="actions"><button id="viewRecording" class="secondary" aria-expanded="false">View last recording</button><button id="deleteRecording" class="ghost">Delete recording</button></div><div id="recordingPreview" hidden><canvas id="recordingOverview" width="600" height="140" style="width:100%;height:140px" aria-label="Last recording raw voltage overview"></canvas><p class="hint">Raw voltage overview · time runs left to right.</p></div></div><p id="recStatus" class="hint" role="status">Start recording, run the protocol, then stop and download.</p></div>
+<div id="recordControls" class="scopeRecording"><div class="recordHeading"><h3>Record this experiment</h3><span id="recBadge" class="badge">READY</span></div><div class="sessionline"><label>Data name<input id="session" value="orientation-tuning" maxlength="48" aria-label="Data name"></label><div class="recordingSummary"><div class="recnumbers"><strong id="recTime">0.0 s</strong><span id="recSize">0 samples · 0 MB</span></div><button id="deleteRecording" class="ghost" disabled>Delete recording</button></div></div>
+<div class="actions"><button id="record" class="record" aria-pressed="false">● Start recording</button><button id="download" class="secondary" disabled>Download recording</button></div><p id="recStatus" class="hint" role="status">Start recording, run the protocol, then stop and download.</p></div>
 </section>
 <section class="panel codepanel"><div class="panelhead"><div><h2>Stimulus protocol</h2></div><div class="protocolBadge"><span class="badge">PYTHON</span><button id="protocolInfo" type="button" class="protocolInfo" aria-label="Python protocol help" aria-expanded="false" aria-controls="protocolHelp" title="What can I do in Python?">i</button></div></div>
 <p class="description">Write a sequence, then run it on the rig. <code>image(filename, ...)</code> presents an uploaded or sample image; <code>blank(duration)</code> inserts a gray interval. Durations are seconds.</p>
@@ -298,36 +299,26 @@ function recordingStore(mode,operation){return new Promise((resolve,reject)=>{
   request.onsuccess=()=>{const db=request.result,tx=db.transaction('recordings',mode),result=operation(tx.objectStore('recordings'));tx.oncomplete=()=>{db.close();resolve(result.result);};tx.onerror=tx.onabort=()=>{db.close();reject(tx.error);};};
 });}
 function updateLastRecording(){
-  document.getElementById('lastRecording').hidden=!lastRecording;
   document.getElementById('download').disabled=recording||!lastRecording;
-  document.getElementById('viewRecording').disabled=recording;
-  document.getElementById('deleteRecording').disabled=recording;
-  if(lastRecording){const m=lastRecording.metadata;document.getElementById('lastRecordingInfo').textContent=`Last recording: ${m.session} · ${m.duration_s.toFixed(2)} s · ${new Date(m.created_utc).toLocaleString()}`;}
+  document.getElementById('deleteRecording').disabled=recording||!lastRecording;
+  if(!recording){const m=lastRecording?.metadata,n=m?.sample_count||0;document.getElementById('recTime').textContent=(m?.duration_s||0).toFixed(1)+' s';document.getElementById('recSize').textContent=n.toLocaleString()+' samples · '+(n*4/1e6).toFixed(2)+' MB';}
 }
 async function storeLastRecording(m){
   recordingRevision++;
   const encoder=new TextEncoder(),json=x=>encoder.encode(JSON.stringify(x,null,2));
-  // Keep a small min/max overview, not a second copy of the raw voltage.
-  const view=new DataView(m.binary.buffer,m.binary.byteOffset,m.binary.byteLength),n=m.binary.byteLength/4,bins=Math.min(600,n),overview=[];
-  for(let b=0;b<bins;b++){let low=Infinity,high=-Infinity;for(let i=Math.floor(b*n/bins);i<Math.floor((b+1)*n/bins);i++){const v=view.getFloat32(i*4,true);low=Math.min(low,v);high=Math.max(high,v);}overview.push([low,high]);}
-  lastRecording={metadata:m.metadata,overview,zip:recordingZip([['voltage.bin',m.binary],['metadata.json',json(m.metadata)],['stimuli.json',json(m.stimuli)],['camera_frames.json',json(m.cameraFrames||[])]])};
-  saved=true;document.getElementById('recordingPreview').hidden=true;document.getElementById('viewRecording').textContent='View last recording';document.getElementById('viewRecording').setAttribute('aria-expanded','false');
+  lastRecording={metadata:m.metadata,zip:recordingZip([['voltage.bin',m.binary],['metadata.json',json(m.metadata)],['stimuli.json',json(m.stimuli)],['camera_frames.json',json(m.cameraFrames||[])]])};
+  saved=true;
   let persisted=true;try{await recordingStore('readwrite',s=>s.put(lastRecording,'last'));}catch{persisted=false;}
   document.getElementById('record').disabled=false;updateLastRecording();
-  document.getElementById('recStatus').textContent=persisted?'Recording ready · kept in this browser until replaced or deleted.':'Recording ready · browser storage unavailable; download before leaving this page.';
+  document.getElementById('recStatus').textContent=`Last recording: ${m.metadata.session}. `+(persisted?'Ready to download.':'Browser storage unavailable; download before leaving this page.');
 }
 function downloadLastRecording(){
   if(!lastRecording||recording)return;
   const m=lastRecording.metadata,url=URL.createObjectURL(lastRecording.zip),a=document.createElement('a');a.href=url;a.download=(m.session.replace(/[^a-zA-Z0-9_-]/g,'_')||'recording')+'_'+m.created_utc.replace(/[:.]/g,'-')+'.zip';a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);
 }
-function drawRecordingOverview(){
-  const canvas=document.getElementById('recordingOverview'),ctx=canvas.getContext('2d'),values=lastRecording.overview;
-  ctx.fillStyle='#08131c';ctx.fillRect(0,0,600,140);const peak=Math.max(1,...values.flat().map(Math.abs));ctx.strokeStyle='#75dcc3';ctx.beginPath();values.forEach(([lo,hi],i)=>{const x=(i+.5)/values.length*600;ctx.moveTo(x,70-hi/peak*62);ctx.lineTo(x,70-lo/peak*62);});ctx.stroke();
-}
 if(typeof document!=='undefined')document.addEventListener('DOMContentLoaded',async()=>{
-  document.getElementById('viewRecording').onclick=()=>{const panel=document.getElementById('recordingPreview');panel.hidden=!panel.hidden;document.getElementById('viewRecording').textContent=panel.hidden?'View last recording':'Hide recording';document.getElementById('viewRecording').setAttribute('aria-expanded',String(!panel.hidden));if(!panel.hidden&&lastRecording)drawRecordingOverview();};
-  document.getElementById('deleteRecording').onclick=async()=>{if(recording)return;recordingRevision++;lastRecording=null;saved=false;send('clearRecord');document.getElementById('recordingPreview').hidden=true;updateLastRecording();try{await recordingStore('readwrite',s=>s.delete('last'));document.getElementById('recStatus').textContent='Last recording deleted.';}catch{document.getElementById('recStatus').textContent='Cleared from this page; browser storage could not be cleared.';}};
-  const revision=recordingRevision;try{const restored=await recordingStore('readonly',s=>s.get('last'));if(revision===recordingRevision&&!recording&&restored){lastRecording=restored;saved=true;updateLastRecording();document.getElementById('recStatus').textContent='Last recording restored from this browser.';}}catch{}
+  document.getElementById('deleteRecording').onclick=async()=>{if(recording||!lastRecording)return;recordingRevision++;lastRecording=null;saved=false;send('clearRecord');updateLastRecording();try{await recordingStore('readwrite',s=>s.delete('last'));document.getElementById('recStatus').textContent='Last recording deleted.';}catch{document.getElementById('recStatus').textContent='Cleared from this page; browser storage could not be cleared.';}};
+  const revision=recordingRevision;try{const restored=await recordingStore('readonly',s=>s.get('last'));if(revision===recordingRevision&&!recording&&restored){lastRecording=restored;saved=true;updateLastRecording();document.getElementById('recStatus').textContent=`Last recording: ${restored.metadata.session}. Ready to download.`;}}catch{}
 });
 </script>
 <script>
@@ -376,7 +367,7 @@ for repeat in range(repetitions):
     random.shuffle(order)  # Comment out this line for an ordered scan.
     for x, y in order:
         blank(duration=0.05)
-        grating(orientation=orientation, duration=0.025,
+        grating(orientation=orientation, duration=0.20,
                 spatial_frequency=5,
                 temporal_frequency=2, x=x, y=y,
                 size=size)
@@ -385,7 +376,7 @@ blank(duration=1.0)`;
 const protocolExamples={two:orientationExample,three:spatialExample};
 let protocolExercise=location.hash==='#exercise-3'?'three':'two';
 function protocolKey(exercise){return`mystery-rig-protocol-v1-${exercise}`;}
-function loadProtocolForExercise(exercise){if(!protocolExamples[exercise])return;protocolExercise=exercise;let saved='';try{saved=localStorage.getItem(protocolKey(exercise))||'';}catch{}const oldSpatial=spatialExample.replace('size = 0.6','size = 0.22').replace('blank(duration=0.05)','blank(duration=0.25)').replace('duration=0.025','duration=0.6');if(exercise==='three'&&[oldSpatial,oldSpatial.replace('orientation = 0','orientation = 120'),spatialExample.replace('orientation = 0','orientation = 120')].includes(saved))saved=spatialExample;$('code').value=(saved||protocolExamples[exercise]).replace('; no installation needed.','.');}
+function loadProtocolForExercise(exercise){if(!protocolExamples[exercise])return;protocolExercise=exercise;let saved='';try{saved=localStorage.getItem(protocolKey(exercise))||'';}catch{}const oldSpatial=spatialExample.replace('size = 0.6','size = 0.22').replace('blank(duration=0.05)','blank(duration=0.25)').replace('duration=0.20','duration=0.6'),shortSpatial=spatialExample.replace('duration=0.20','duration=0.025');if(exercise==='three'&&[oldSpatial,shortSpatial,oldSpatial.replace('orientation = 0','orientation = 120'),shortSpatial.replace('orientation = 0','orientation = 120'),spatialExample.replace('orientation = 0','orientation = 120')].includes(saved))saved=spatialExample;$('code').value=(saved||protocolExamples[exercise]).replace('; no installation needed.','.');}
 window.loadProtocolForExercise=loadProtocolForExercise;loadProtocolForExercise(protocolExercise);
 $('code').value=$('code').value.replace('; no installation needed.','.');
 $('code').addEventListener('input',()=>{try{localStorage.setItem(protocolKey(protocolExercise),$('code').value);}catch{}});
@@ -467,7 +458,7 @@ function drawRF(){const c=$('rf'),ctx=c.getContext('2d');ctx.fillStyle='#808080'
 }
 $('reveal').onchange=drawRF;drawRF();
 worker.onmessage=e=>{const m=e.data;
-  if(m.type==='data'){clock=m.time;const detections=scope.push(m.data);for(let i=0;i<Math.min(detections.length,3);i++)audioClick();if(scope.auto)$('threshold').value=scope.threshold.toFixed(1);$('recTime').textContent=(m.samples/20000).toFixed(1)+' s';$('recSize').textContent=m.samples.toLocaleString()+' samples · '+(m.samples*4/1e6).toFixed(2)+' MB';}
+  if(m.type==='data'){clock=m.time;const detections=scope.push(m.data);for(let i=0;i<Math.min(detections.length,3);i++)audioClick();if(scope.auto)$('threshold').value=scope.threshold.toFixed(1);const samples=recording?m.samples:(lastRecording?.metadata.sample_count||0);$('recTime').textContent=(samples/20000).toFixed(1)+' s';$('recSize').textContent=samples.toLocaleString()+' samples · '+(samples*4/1e6).toFixed(2)+' MB';}
   if(m.type==='stimulus'){stim=m.stimulus;window.mysteryStimulusChanged?.(stim);$('present').textContent=stim.type==='blank'?'Show stimulus':'Hide stimulus';$('present').setAttribute('aria-pressed',String(stim.type!=='blank'));stimOnset=m.time;$('stimBadge').textContent=stim.type==='blank'?'GRAY SCREEN':`${stim.orientation}° ${stim.type==='bar'?'BAR':'GRATING'}`;$('stimDetails').textContent=stim.type==='blank'?'Mean luminance · no stimulus':stim.type==='bar'?'Black bar':`${stim.spatial_frequency} cyc/screen · ${stim.temporal_frequency} Hz · ${Math.round(stim.radius*100)}% size`;
     if(stim.type==='bar'){$('stimulusKind').value='bar';$('barWidth').value=stim.width;$('barLength').value=stim.length;$('orientation').value=((stim.orientation%180)+180)%180;position={x:stim.x,y:stim.y};updateControls();}
     if(stim.type==='grating'){$('stimulusKind').value='grating';$('orientation').value=((stim.orientation%180)+180)%180;$('gratingSize').value=Math.round(stim.radius*100);$('frequency').value=stim.spatial_frequency;$('speed').value=stim.temporal_frequency;position={x:stim.x,y:stim.y};updateControls();}}

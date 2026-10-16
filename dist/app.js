@@ -33,7 +33,7 @@ for repeat in range(repetitions):
     random.shuffle(order)  # Comment out this line for an ordered scan.
     for x, y in order:
         blank(duration=0.05)
-        grating(orientation=orientation, duration=0.025,
+        grating(orientation=orientation, duration=0.20,
                 spatial_frequency=5,
                 temporal_frequency=2, x=x, y=y,
                 size=size)
@@ -42,7 +42,7 @@ blank(duration=1.0)`;
 const protocolExamples={two:orientationExample,three:spatialExample};
 let protocolExercise=location.hash==='#exercise-3'?'three':'two';
 function protocolKey(exercise){return`visual-rig-protocol-v3-${exercise}`;}
-function loadProtocolForExercise(exercise){if(!protocolExamples[exercise])return;protocolExercise=exercise;let saved='';try{saved=localStorage.getItem(protocolKey(exercise))||'';}catch{}const oldSpatial=spatialExample.replace('size = 0.6','size = 0.22').replace('blank(duration=0.05)','blank(duration=0.25)').replace('duration=0.025','duration=0.6');if(exercise==='three'&&[oldSpatial,oldSpatial.replace('orientation = 0','orientation = 120'),spatialExample.replace('orientation = 0','orientation = 120')].includes(saved))saved=spatialExample;$('code').value=(saved||protocolExamples[exercise]).replace('; no installation needed.','.');}
+function loadProtocolForExercise(exercise){if(!protocolExamples[exercise])return;protocolExercise=exercise;let saved='';try{saved=localStorage.getItem(protocolKey(exercise))||'';}catch{}const oldSpatial=spatialExample.replace('size = 0.6','size = 0.22').replace('blank(duration=0.05)','blank(duration=0.25)').replace('duration=0.20','duration=0.6'),shortSpatial=spatialExample.replace('duration=0.20','duration=0.025');if(exercise==='three'&&[oldSpatial,shortSpatial,oldSpatial.replace('orientation = 0','orientation = 120'),shortSpatial.replace('orientation = 0','orientation = 120'),spatialExample.replace('orientation = 0','orientation = 120')].includes(saved))saved=spatialExample;$('code').value=(saved||protocolExamples[exercise]).replace('; no installation needed.','.');}
 window.loadProtocolForExercise=loadProtocolForExercise;loadProtocolForExercise(protocolExercise);
 $('code').value=$('code').value.replace('; no installation needed.','.');
 $('code').addEventListener('input',()=>{try{localStorage.setItem(protocolKey(protocolExercise),$('code').value);}catch{}});
@@ -123,7 +123,7 @@ function drawRF(){const c=$('rf'),ctx=c.getContext('2d');ctx.fillStyle='#808080'
 }
 $('reveal').onchange=drawRF;drawRF();
 worker.onmessage=e=>{const m=e.data;
-  if(m.type==='data'){clock=m.time;const detections=scope.push(m.data);for(let i=0;i<Math.min(detections.length,3);i++)audioClick();if(scope.auto)$('threshold').value=scope.threshold.toFixed(1);$('recTime').textContent=(m.samples/20000).toFixed(1)+' s';$('recSize').textContent=m.samples.toLocaleString()+' samples · '+(m.samples*4/1e6).toFixed(2)+' MB';}
+  if(m.type==='data'){clock=m.time;const detections=scope.push(m.data);for(let i=0;i<Math.min(detections.length,3);i++)audioClick();if(scope.auto)$('threshold').value=scope.threshold.toFixed(1);const samples=recording?m.samples:(lastRecording?.metadata.sample_count||0);$('recTime').textContent=(samples/20000).toFixed(1)+' s';$('recSize').textContent=samples.toLocaleString()+' samples · '+(samples*4/1e6).toFixed(2)+' MB';}
   if(m.type==='stimulus'){stim=m.stimulus;$('present').textContent=stim.type==='blank'?'Show stimulus':'Hide stimulus';$('present').setAttribute('aria-pressed',String(stim.type!=='blank'));stimOnset=m.time;$('stimBadge').textContent=stim.type==='blank'?'GRAY SCREEN':`${stim.orientation}° ${stim.type==='bar'?'BAR':'GRATING'}`;$('stimDetails').textContent=stim.type==='blank'?'Mean luminance · no stimulus':stim.type==='bar'?'Black bar':`${stim.spatial_frequency} cyc/screen · ${stim.temporal_frequency} Hz · ${Math.round(stim.radius*100)}% size`;
     if(stim.type==='bar'){$('stimulusKind').value='bar';$('barWidth').value=stim.width;$('barLength').value=stim.length;$('orientation').value=((stim.orientation%180)+180)%180;position={x:stim.x,y:stim.y};updateControls();}
     if(stim.type==='grating'){$('stimulusKind').value='grating';$('orientation').value=((stim.orientation%180)+180)%180;$('gratingSize').value=Math.round(stim.radius*100);$('frequency').value=stim.spatial_frequency;$('speed').value=stim.temporal_frequency;position={x:stim.x,y:stim.y};updateControls();}}

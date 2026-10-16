@@ -41,6 +41,7 @@ body:is([data-exercise=two],[data-exercise=three]) .cameraViewport{position:stic
 #stimulusWindow::before,#stimulusWindow::after{display:none}.monitorStand{width:82px;height:19px;margin:-31px auto 18px;position:relative;background:linear-gradient(90deg,transparent 33px,#52616a 33px,#52616a 49px,transparent 49px)}.monitorStand::after{content:'';position:absolute;left:0;bottom:0;width:82px;height:7px;border-radius:5px 5px 2px 2px;background:linear-gradient(#61717a,#26343d);box-shadow:0 4px 8px #0008}body:has(#stimulusWindow.floatingMonitor) .monitorStand{display:none}
 
 /* Experiment recording lives with the trace; RF reveal is a hidden keyboard shortcut. */
+.recordingSummary{display:flex;align-items:center;justify-content:flex-end;gap:12px;flex-wrap:wrap}.recordingSummary #deleteRecording{padding:6px 9px;font-size:11px}
 .scopeRecording{border-top:1px solid var(--border);margin-top:16px;padding-top:14px}.recordHeading{display:flex;align-items:center;justify-content:space-between;gap:12px}.recordHeading h3{margin:0}.scopeRecording .sessionline{border-top:0;margin-top:10px;padding-top:0}.scopeRecording .actions{margin-bottom:5px}body:is([data-exercise=two],[data-exercise=three]) #recordControls{display:block!important}body:is([data-exercise=two],[data-exercise=three]) #recBadge{display:inline-block!important}
 
 /* Prototype 14: the drag icon becomes a Dock control only while floating. */
