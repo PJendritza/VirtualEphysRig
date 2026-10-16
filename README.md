@@ -2,7 +2,9 @@
 
 Browser-based simulated visual electrophysiology rig for teaching.
 
-[Open the current Visual Neuron Lab Site](https://visual-neuron-rig-updated.pjendritza.chatgpt.site/)
+[Run Visual Neuron Lab](https://patrickjendritza.com/VirtualEphysRig/dist/)
+
+Publicly hosted with GitHub Pages; no ChatGPT account is required.
 
 ## Run locally
 
