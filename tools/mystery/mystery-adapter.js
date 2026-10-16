@@ -96,7 +96,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeFileMenu();});
 $('restoreImages').onclick=()=>{if(recording)return;for(const [name,img]of removedAssets){if(!assets.has(name))assets.set(name,img);else addAsset(name,img);}removedAssets.clear();rebuildGallery();$('imageStatus').textContent='Removed files restored, including uploaded images.';};
 $('uploadImages').onclick=()=>$('imageFiles').click();
 $('protocolInfo').onclick=()=>{const open=$('protocolHelp').hidden;$('protocolHelp').hidden=!open;$('protocolInfo').setAttribute('aria-expanded',String(open));};
-$('exerciseSelect').onchange=()=>{if(recording||saved){if(!confirm('Leave this exercise? Download your recording first.')){$('exerciseSelect').value='four';return;}}const number={one:1,two:2,three:3,four:4}[$('exerciseSelect').value];if(number!==4)location.href='./index.html#exercise-'+number;};
+$('exerciseSelect').onchange=()=>{if(recording){$('exerciseSelect').value='four';$('recStatus').textContent='Stop recording before changing exercise.';return;}const number={one:1,two:2,three:3,four:4}[$('exerciseSelect').value];if(number!==4)location.href='./index.html#exercise-'+number;};
 // Start with exactly the spatial exercise's scope settings and direct input.
 scope.setFilter({highpass:300,lowpass:6000});scope.setThreshold(-70);$('threshold').value=-70;
 $('cameraMirror').checked=false;$('inputSource').value='direct';$('inputSource').onchange();

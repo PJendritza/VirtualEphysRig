@@ -21,7 +21,7 @@ import random
 # Replace this with the preferred orientation from Exercise 2.
 orientation = 0
 step = 0.4
-size = 0.22
+size = 0.6
 repetitions = 2
 
 x_positions = [-1.2 + i * step for i in range(int(2.4 / step) + 1)]
@@ -32,8 +32,8 @@ for repeat in range(repetitions):
     order = positions[:]
     random.shuffle(order)  # Comment out this line for an ordered scan.
     for x, y in order:
-        blank(duration=0.25)
-        grating(orientation=orientation, duration=0.6,
+        blank(duration=0.05)
+        grating(orientation=orientation, duration=0.025,
                 spatial_frequency=5,
                 temporal_frequency=2, x=x, y=y,
                 size=size)
@@ -42,7 +42,7 @@ blank(duration=1.0)`;
 const protocolExamples={two:orientationExample,three:spatialExample};
 let protocolExercise=location.hash==='#exercise-3'?'three':'two';
 function protocolKey(exercise){return`visual-rig-protocol-v3-${exercise}`;}
-function loadProtocolForExercise(exercise){if(!protocolExamples[exercise])return;protocolExercise=exercise;let saved='';try{saved=localStorage.getItem(protocolKey(exercise))||'';}catch{}if(exercise==='three'&&saved===spatialExample.replace('orientation = 0','orientation = 120'))saved=spatialExample;$('code').value=(saved||protocolExamples[exercise]).replace('; no installation needed.','.');}
+function loadProtocolForExercise(exercise){if(!protocolExamples[exercise])return;protocolExercise=exercise;let saved='';try{saved=localStorage.getItem(protocolKey(exercise))||'';}catch{}const oldSpatial=spatialExample.replace('size = 0.6','size = 0.22').replace('blank(duration=0.05)','blank(duration=0.25)').replace('duration=0.025','duration=0.6');if(exercise==='three'&&[oldSpatial,oldSpatial.replace('orientation = 0','orientation = 120'),spatialExample.replace('orientation = 0','orientation = 120')].includes(saved))saved=spatialExample;$('code').value=(saved||protocolExamples[exercise]).replace('; no installation needed.','.');}
 window.loadProtocolForExercise=loadProtocolForExercise;loadProtocolForExercise(protocolExercise);
 $('code').value=$('code').value.replace('; no installation needed.','.');
 $('code').addEventListener('input',()=>{try{localStorage.setItem(protocolKey(protocolExercise),$('code').value);}catch{}});
@@ -83,7 +83,7 @@ $('run').onclick=()=>{if(compiling){cancelCompile();return;}if(protocolRunning){
 };
 $('record').onclick=()=>{if(recording){$('record').disabled=true;send('stopRecord');return;}if(saved&&!confirm('Replace the previous recording? Download it first if you want to keep it.'))return;
   $('record').disabled=true;send('record',{name:$('session').value.trim()||'orientation-tuning',code:$('code').value});};
-$('download').onclick=()=>{$('download').disabled=true;send('export');};
+$('download').onclick=()=>downloadLastRecording();
 function setRFRevealed(value){$('reveal').checked=value;$('showCameraRF').checked=value;drawRF();window.refreshVisualInput?.();}
 let rfKeyTimes=[];
 document.addEventListener('keydown',e=>{const target=e.target,editing=target.matches?.('input,textarea,select')||target.isContentEditable;if(editing||e.repeat||e.ctrlKey||e.altKey||e.metaKey||e.key.toLowerCase()!=='r')return;const now=performance.now();rfKeyTimes=rfKeyTimes.filter(time=>now-time<900);rfKeyTimes.push(now);if(rfKeyTimes.length===3){setRFRevealed(!$('showCameraRF').checked);rfKeyTimes=[];}});
@@ -128,13 +128,12 @@ worker.onmessage=e=>{const m=e.data;
     if(stim.type==='bar'){$('stimulusKind').value='bar';$('barWidth').value=stim.width;$('barLength').value=stim.length;$('orientation').value=((stim.orientation%180)+180)%180;position={x:stim.x,y:stim.y};updateControls();}
     if(stim.type==='grating'){$('stimulusKind').value='grating';$('orientation').value=((stim.orientation%180)+180)%180;$('gratingSize').value=Math.round(stim.radius*100);$('frequency').value=stim.spatial_frequency;$('speed').value=stim.temporal_frequency;position={x:stim.x,y:stim.y};updateControls();}}
   if(m.type==='protocol'){if(['stopped','completed'].includes(m.status)){protocolRunning=false;updateProtocolButton();message(m.status==='completed'?'Protocol complete.':'Protocol stopped.');}else{protocolRunning=true;updateProtocolButton();message('Protocol segment '+m.status+(recording?' · recording':''));}}
-  if(m.type==='recording'){recording=m.active;saved=!recording;$('record').disabled=false;$('record').textContent=recording?'■ Stop recording':'● Start recording';$('record').setAttribute('aria-pressed',String(recording));$('download').disabled=recording||!saved;$('recBadge').textContent=recording?'● RECORDING':'READY';$('recBadge').style.color=recording?'#ffab84':'#75dcc3';$('recStatus').textContent=recording?'Recording in progress · maximum 5 minutes.':m.auto?'Five-minute limit reached. Ready to download.':'Recording stopped. Ready to download.';}
-  if(m.type==='export'){const encoder=new TextEncoder(),json=x=>encoder.encode(JSON.stringify(x,null,2)),zip=recordingZip([['voltage.bin',m.binary],['metadata.json',json(m.metadata)],['stimuli.json',json(m.stimuli)],['camera_frames.json',json(m.cameraFrames||[])]]);const url=URL.createObjectURL(zip),a=document.createElement('a');a.href=url;a.download=(m.metadata.session.replace(/[^a-zA-Z0-9_-]/g,'_')||'recording')+'_'+m.metadata.created_utc.replace(/[:.]/g,'-')+'.zip';a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);$('download').disabled=false;$('recStatus').textContent='Download requested.';}
+  if(m.type==='recording'){recording=m.active;saved=!!lastRecording;$('record').disabled=false;$('record').textContent=recording?'■ Stop recording':'● Start recording';$('record').setAttribute('aria-pressed',String(recording));$('recBadge').textContent=recording?'● RECORDING':'READY';$('recBadge').style.color=recording?'#ffab84':'#75dcc3';updateLastRecording();$('recStatus').textContent=recording?'Recording in progress · maximum 5 minutes.':'Saving last recording…';if(!recording){$('record').disabled=true;send('export');}}
+  if(m.type==='export')storeLastRecording(m);
   if(m.type==='error'){$('record').disabled=false;$('download').disabled=recording||!saved;message(m.message,true);}
 };
 worker.onerror=()=>{$('rigStatus').textContent='Acquisition error';message('The recording worker could not start. Reload the page.',true);};
 document.addEventListener('visibilitychange',()=>{hidden=document.hidden;send('suspend',{value:hidden});$('rigStatus').textContent=hidden?'Paused · tab hidden':'Rig running';});
-window.addEventListener('beforeunload',e=>{if(recording||saved){e.preventDefault();e.returnValue='';}});
 function drawMonitor(){const s=stim,th=(s.orientation||0)*Math.PI/180,phase=(s.phase||0)*Math.PI/180+2*Math.PI*(s.temporal_frequency||0)*(clock-stimOnset);
   for(let j=0;j<120;j++)for(let i=0;i<180;i++){let v=128;if(s.type==='bar'){const x=(i+.5)/180*3-1.5-s.x,y=(j+.5)/120*2-1-s.y,q=-Math.sin(th)*x+Math.cos(th)*y,p=Math.cos(th)*x+Math.sin(th)*y;if(Math.abs(q)<=s.width/2&&Math.abs(p)<=s.length/2)v=Math.round(127.5*(1-s.contrast));}else if(s.type==='grating'){const x=(i+.5)/180*3-1.5-s.x,y=(j+.5)/120*2-1-s.y;if(x*x+y*y<=s.radius*s.radius){const q=-Math.sin(th)*x+Math.cos(th)*y;v=Math.round(127.5+127.5*s.contrast*Math.cos(Math.PI*s.spatial_frequency*q+phase));}}const n=(j*180+i)*4;image.data[n]=image.data[n+1]=image.data[n+2]=v;image.data[n+3]=255;}
   ic.putImageData(image,0,0);mc.imageSmoothingEnabled=true;mc.drawImage(imageCanvas,0,0,600,400);

@@ -16,6 +16,7 @@ onmessage=e=>{const m=e.data;try{
   if(m.type==='cameraStopped'){engine.cameraDrive=0;engine.cameraSample=-Infinity;engine.addNote('camera_stopped');}
   if(m.type==='record'){engine.startRecording(m.name,m.code);postMessage({type:'recording',active:true});}
   if(m.type==='stopRecord'){engine.stopRecording();postMessage({type:'recording',active:false});}
+  if(m.type==='clearRecord'&&!engine.recording)engine.saved=null;
   if(m.type==='suspend'){suspended=m.value;engine.addNote(suspended?'tab_hidden_simulation_paused':'tab_visible_simulation_resumed');postMessage({type:'suspended',value:suspended});}
   if(m.type==='export'){const r=engine.exportRecording();postMessage({type:'export',...r},[r.binary.buffer]);}
 }catch(err){postMessage({type:'error',message:err.message});}};

@@ -14,3 +14,44 @@ function recordingZip(files){
   return new Blob([...parts,...central,end],{type:'application/zip'});
 }
 if(typeof module!=='undefined')module.exports={recordingZip};
+
+// One completed recording shared by the exercise pages on this origin.
+let lastRecording=null,recordingRevision=0;
+function recordingStore(mode,operation){return new Promise((resolve,reject)=>{
+  const request=indexedDB.open('visual-rig-recordings',1);
+  request.onupgradeneeded=()=>request.result.createObjectStore('recordings');
+  request.onerror=()=>reject(request.error);
+  request.onsuccess=()=>{const db=request.result,tx=db.transaction('recordings',mode),result=operation(tx.objectStore('recordings'));tx.oncomplete=()=>{db.close();resolve(result.result);};tx.onerror=tx.onabort=()=>{db.close();reject(tx.error);};};
+});}
+function updateLastRecording(){
+  document.getElementById('lastRecording').hidden=!lastRecording;
+  document.getElementById('download').disabled=recording||!lastRecording;
+  document.getElementById('viewRecording').disabled=recording;
+  document.getElementById('deleteRecording').disabled=recording;
+  if(lastRecording){const m=lastRecording.metadata;document.getElementById('lastRecordingInfo').textContent=`Last recording: ${m.session} · ${m.duration_s.toFixed(2)} s · ${new Date(m.created_utc).toLocaleString()}`;}
+}
+async function storeLastRecording(m){
+  recordingRevision++;
+  const encoder=new TextEncoder(),json=x=>encoder.encode(JSON.stringify(x,null,2));
+  // Keep a small min/max overview, not a second copy of the raw voltage.
+  const view=new DataView(m.binary.buffer,m.binary.byteOffset,m.binary.byteLength),n=m.binary.byteLength/4,bins=Math.min(600,n),overview=[];
+  for(let b=0;b<bins;b++){let low=Infinity,high=-Infinity;for(let i=Math.floor(b*n/bins);i<Math.floor((b+1)*n/bins);i++){const v=view.getFloat32(i*4,true);low=Math.min(low,v);high=Math.max(high,v);}overview.push([low,high]);}
+  lastRecording={metadata:m.metadata,overview,zip:recordingZip([['voltage.bin',m.binary],['metadata.json',json(m.metadata)],['stimuli.json',json(m.stimuli)],['camera_frames.json',json(m.cameraFrames||[])]])};
+  saved=true;document.getElementById('recordingPreview').hidden=true;document.getElementById('viewRecording').textContent='View last recording';document.getElementById('viewRecording').setAttribute('aria-expanded','false');
+  let persisted=true;try{await recordingStore('readwrite',s=>s.put(lastRecording,'last'));}catch{persisted=false;}
+  document.getElementById('record').disabled=false;updateLastRecording();
+  document.getElementById('recStatus').textContent=persisted?'Recording ready · kept in this browser until replaced or deleted.':'Recording ready · browser storage unavailable; download before leaving this page.';
+}
+function downloadLastRecording(){
+  if(!lastRecording||recording)return;
+  const m=lastRecording.metadata,url=URL.createObjectURL(lastRecording.zip),a=document.createElement('a');a.href=url;a.download=(m.session.replace(/[^a-zA-Z0-9_-]/g,'_')||'recording')+'_'+m.created_utc.replace(/[:.]/g,'-')+'.zip';a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);
+}
+function drawRecordingOverview(){
+  const canvas=document.getElementById('recordingOverview'),ctx=canvas.getContext('2d'),values=lastRecording.overview;
+  ctx.fillStyle='#08131c';ctx.fillRect(0,0,600,140);const peak=Math.max(1,...values.flat().map(Math.abs));ctx.strokeStyle='#75dcc3';ctx.beginPath();values.forEach(([lo,hi],i)=>{const x=(i+.5)/values.length*600;ctx.moveTo(x,70-hi/peak*62);ctx.lineTo(x,70-lo/peak*62);});ctx.stroke();
+}
+if(typeof document!=='undefined')document.addEventListener('DOMContentLoaded',async()=>{
+  document.getElementById('viewRecording').onclick=()=>{const panel=document.getElementById('recordingPreview');panel.hidden=!panel.hidden;document.getElementById('viewRecording').textContent=panel.hidden?'View last recording':'Hide recording';document.getElementById('viewRecording').setAttribute('aria-expanded',String(!panel.hidden));if(!panel.hidden&&lastRecording)drawRecordingOverview();};
+  document.getElementById('deleteRecording').onclick=async()=>{if(recording)return;recordingRevision++;lastRecording=null;saved=false;send('clearRecord');document.getElementById('recordingPreview').hidden=true;updateLastRecording();try{await recordingStore('readwrite',s=>s.delete('last'));document.getElementById('recStatus').textContent='Last recording deleted.';}catch{document.getElementById('recStatus').textContent='Cleared from this page; browser storage could not be cleared.';}};
+  const revision=recordingRevision;try{const restored=await recordingStore('readonly',s=>s.get('last'));if(revision===recordingRevision&&!recording&&restored){lastRecording=restored;saved=true;updateLastRecording();document.getElementById('recStatus').textContent='Last recording restored from this browser.';}}catch{}
+});
