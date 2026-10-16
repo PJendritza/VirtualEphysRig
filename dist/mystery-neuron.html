@@ -354,19 +354,20 @@ import random
 
 # Replace this with the preferred orientation from Exercise 2.
 orientation = 0
-step = 0.4
-size = 0.6
-repetitions = 2
+step = 0.3
+size = 0.5
+repetitions = 3
 
-x_positions = [-1.2 + i * step for i in range(int(2.4 / step) + 1)]
-y_positions = [-0.8 + i * step for i in range(int(1.6 / step) + 1)]
+x_positions = [round(-1.2 + i * step, 6) for i in range(round(2.4 / step) + 1)]
+y_positions = [round(-0.8 + i * step, 6) for i in range(round(1.6 / step) + 1)]
 positions = [(x, y) for y in y_positions for x in x_positions]
 
+blank(duration=0.5)
 for repeat in range(repetitions):
     order = positions[:]
     random.shuffle(order)  # Comment out this line for an ordered scan.
     for x, y in order:
-        blank(duration=0.05)
+        blank(duration=0.1)
         grating(orientation=orientation, duration=0.20,
                 spatial_frequency=5,
                 temporal_frequency=2, x=x, y=y,
@@ -374,9 +375,11 @@ for repeat in range(repetitions):
 
 blank(duration=1.0)`;
 const protocolExamples={two:orientationExample,three:spatialExample};
+// Recognize untouched older examples while preserving students' edited protocols.
+const previousSpatialExample=spatialExample.replace('step = 0.3','step = 0.4').replace('size = 0.5','size = 0.6').replace('repetitions = 3','repetitions = 2').replace('round(-1.2 + i * step, 6)','-1.2 + i * step').replace('round(-0.8 + i * step, 6)','-0.8 + i * step').replaceAll('range(round(','range(int(').replace('\nblank(duration=0.5)\nfor repeat','\nfor repeat').replace('blank(duration=0.1)','blank(duration=0.05)');
 let protocolExercise=location.hash==='#exercise-3'?'three':'two';
 function protocolKey(exercise){return`mystery-rig-protocol-v1-${exercise}`;}
-function loadProtocolForExercise(exercise){if(!protocolExamples[exercise])return;protocolExercise=exercise;let saved='';try{saved=localStorage.getItem(protocolKey(exercise))||'';}catch{}const oldSpatial=spatialExample.replace('size = 0.6','size = 0.22').replace('blank(duration=0.05)','blank(duration=0.25)').replace('duration=0.20','duration=0.6'),shortSpatial=spatialExample.replace('duration=0.20','duration=0.025');if(exercise==='three'&&[oldSpatial,shortSpatial,oldSpatial.replace('orientation = 0','orientation = 120'),shortSpatial.replace('orientation = 0','orientation = 120'),spatialExample.replace('orientation = 0','orientation = 120')].includes(saved))saved=spatialExample;$('code').value=(saved||protocolExamples[exercise]).replace('; no installation needed.','.');}
+function loadProtocolForExercise(exercise){if(!protocolExamples[exercise])return;protocolExercise=exercise;let saved='';try{saved=localStorage.getItem(protocolKey(exercise))||'';}catch{}const oldSpatial=previousSpatialExample.replace('size = 0.6','size = 0.22').replace('blank(duration=0.05)','blank(duration=0.25)').replace('duration=0.20','duration=0.6'),shortSpatial=previousSpatialExample.replace('duration=0.20','duration=0.025');if(exercise==='three'&&[previousSpatialExample,oldSpatial,shortSpatial].some(example=>saved===example||saved===example.replace('orientation = 0','orientation = 120')))saved=spatialExample;$('code').value=(saved||protocolExamples[exercise]).replace('; no installation needed.','.');}
 window.loadProtocolForExercise=loadProtocolForExercise;loadProtocolForExercise(protocolExercise);
 $('code').value=$('code').value.replace('; no installation needed.','.');
 $('code').addEventListener('input',()=>{try{localStorage.setItem(protocolKey(protocolExercise),$('code').value);}catch{}});
