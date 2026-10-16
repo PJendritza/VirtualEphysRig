@@ -33,12 +33,12 @@ class NeuronEngine {
     for(let i=0;i<gray.length;i++)mean+=this.kernel[i].env*gray[i]/255;mean/=this.envSum;
     let a=0,b=0,energy=0;for(let i=0;i<gray.length;i++){const k=this.kernel[i],v=gray[i]/255-mean;a+=k.env*v*k.a;b+=k.env*v*k.b;energy+=k.env*v*v;}
     const contrast=Math.sqrt(energy/this.envSum),ca=a/Math.sqrt(Math.max(1e-12,energy*this.cameraEnergyA)),cb=b/Math.sqrt(Math.max(1e-12,energy*this.cameraEnergyB));
-    const match=Math.min(1,Math.hypot(ca,cb)),gate=Math.min(1,Math.max(0,(contrast-.025)/.1));this.cameraDrive=match*gate;this.cameraSample=this.n;
+    const match=this.model.type==='V1 simple Gabor cell'?Math.min(1,Math.max(0,cb)):Math.min(1,Math.hypot(ca,cb)),gate=Math.min(1,Math.max(0,(contrast-.025)/.1));this.cameraDrive=match*gate;this.cameraSample=this.n;
     if(this.recording)this.recording.cameraFrames.push({sample:this.n-this.recording.start,time_s:(this.n-this.recording.start)/this.fs,...timing,local_contrast:contrast,filter_match:match,drive:this.cameraDrive});
     return {contrast,match,drive:this.cameraDrive};
   }
   prepareStimulus(s){this.coeffs=[0,0,0,0];this.directBarDrive=0;
-    if(s.type==='bar'){const theta=s.orientation*Math.PI/180,values=new Float32Array(this.kernel.length);let mean=0;for(let i=0;i<this.kernel.length;i++){const k=this.kernel[i],dx=k.x-s.x,dy=k.y-s.y,q=-Math.sin(theta)*dx+Math.cos(theta)*dy,p=Math.cos(theta)*dx+Math.sin(theta)*dy;values[i]=Math.abs(q)<=s.width/2&&Math.abs(p)<=s.length/2?.5*(1-s.contrast):.5;mean+=k.env*values[i];}mean/=this.envSum;let a=0,b=0,energy=0;for(let i=0;i<values.length;i++){const k=this.kernel[i],v=values[i]-mean;a+=k.env*v*k.a;b+=k.env*v*k.b;energy+=k.env*v*v;}const contrast=Math.sqrt(energy/this.envSum),match=Math.min(1,Math.hypot(a/Math.sqrt(Math.max(1e-12,energy*this.cameraEnergyA)),b/Math.sqrt(Math.max(1e-12,energy*this.cameraEnergyB))));this.directBarDrive=match*Math.min(1,Math.max(0,(contrast-.025)/.1));return;}
+    if(s.type==='bar'){const theta=s.orientation*Math.PI/180,values=new Float32Array(this.kernel.length);let mean=0;for(let i=0;i<this.kernel.length;i++){const k=this.kernel[i],dx=k.x-s.x,dy=k.y-s.y,q=-Math.sin(theta)*dx+Math.cos(theta)*dy,p=Math.cos(theta)*dx+Math.sin(theta)*dy;values[i]=Math.abs(q)<=s.width/2&&Math.abs(p)<=s.length/2?.5*(1-s.contrast):.5;mean+=k.env*values[i];}mean/=this.envSum;let a=0,b=0,energy=0;for(let i=0;i<values.length;i++){const k=this.kernel[i],v=values[i]-mean;a+=k.env*v*k.a;b+=k.env*v*k.b;energy+=k.env*v*v;}const contrast=Math.sqrt(energy/this.envSum),match=this.model.type==='V1 simple Gabor cell'?Math.min(1,Math.max(0,b/Math.sqrt(Math.max(1e-12,energy*this.cameraEnergyB)))):Math.min(1,Math.hypot(a/Math.sqrt(Math.max(1e-12,energy*this.cameraEnergyA)),b/Math.sqrt(Math.max(1e-12,energy*this.cameraEnergyB))));this.directBarDrive=match*Math.min(1,Math.max(0,(contrast-.025)/.1));return;}
     if(s.type!=='grating')return;
     const theta=s.orientation*Math.PI/180;
     for(const k of this.kernel){const dx=k.x-s.x,dy=k.y-s.y;if(dx*dx+dy*dy>s.radius*s.radius)continue;
@@ -50,7 +50,7 @@ class NeuronEngine {
   stimulusDrive(t){if(this.inputSource==='webcam')return this.n-this.cameraSample<this.fs*.3?this.cameraDrive:0;const s=this.stim;if(s.type==='bar')return this.directBarDrive;if(s.type!=='grating')return 0;
     const phase=s.phase*Math.PI/180+2*Math.PI*s.temporal_frequency*(t-this.stimOnset),co=Math.cos(phase),si=Math.sin(phase),c=this.coeffs;
     const a=(c[0]*co-c[1]*si)*2/this.envSum,b=(c[2]*co-c[3]*si)*2/this.envSum;
-    return Math.min(1,Math.hypot(a,b)*s.contrast);
+    return this.model.type==='V1 simple Gabor cell'?Math.min(1,Math.max(0,b)*s.contrast):Math.min(1,Math.hypot(a,b)*s.contrast);
   }
   setStimulus(stim,source='manual'){
     const now=this.n/this.fs;

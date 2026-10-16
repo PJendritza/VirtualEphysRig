@@ -103,10 +103,21 @@ audioButton.addEventListener('contextmenu',e=>{e.preventDefault();updateAudioMen
 audioMenu.onclick=async e=>{const button=e.target.closest('[data-sound]');if(!button)return;audioVoice=button.dataset.sound;try{localStorage.setItem('visual-rig-sound',audioVoice);}catch{}closeAudioMenu();if(sound){await unlockAudio();audioClick();}};
 document.addEventListener('pointerdown',e=>{if(!audioMenu.hidden&&!audioMenu.contains(e.target))closeAudioMenu();});
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeAudioMenu();});
-function drawRF(){const c=$('rf'),ctx=c.getContext('2d');ctx.fillStyle='#0b1620';ctx.fillRect(0,0,180,120);if(!$('reveal').checked){ctx.fillStyle='#9cabb9';ctx.font='11px system-ui';ctx.textAlign='center';ctx.fillText('Receptive field hidden',90,60);$('modelInfo').textContent='One simulated neuron. Infer its selectivity from stimulus responses.';return;}
-  $('modelInfo').textContent='Two Gabor filters in quadrature → energy → stochastic spikes. Preferred bars: 120°. The grid shows the two filter components.';
-  for(let q=0;q<2;q++){const im=ctx.createImageData(72,48);for(let i=0;i<modelDisplay.kernel.length;i++){const k=modelDisplay.kernel[i],v=k.env*(q?k.b:k.a),a=Math.abs(v);im.data[4*i]=Math.round(27+a*(v>0?223:30));im.data[4*i+1]=Math.round(38+a*65);im.data[4*i+2]=Math.round(51+a*(v>0?40:204));im.data[4*i+3]=255;}const off=document.createElement('canvas');off.width=72;off.height=48;off.getContext('2d').putImageData(im,0,0);ctx.imageSmoothingEnabled=false;ctx.drawImage(off,q*90,17,90,80);}
-  ctx.fillStyle='#9cabb9';ctx.font='9px system-ui';ctx.textAlign='center';ctx.fillText('cosine',45,112);ctx.fillText('sine',135,112);
+// Smooth grayscale RFs. Maximum lobe opacity is 85%; zero-weight regions
+// stay transparent so this visualization never masks the whole camera image.
+const rfImageCache=new Map();
+function drawReceptiveFieldOverlay(context,m,width=600,height=400){
+  const key=JSON.stringify([m.type,m.orientation,m.spatial_frequency,m.sigma,m.aspect,m.x,m.y]);
+  let canvas=rfImageCache.get(key);
+  if(!canvas){canvas=document.createElement('canvas');canvas.width=300;canvas.height=200;const c=canvas.getContext('2d'),pixels=c.createImageData(300,200),weights=new Float32Array(60000),theta=m.orientation*Math.PI/180;let peak=0;
+    for(let j=0;j<200;j++)for(let i=0;i<300;i++){const dx=(i+.5)/300*3-1.5-m.x,dy=(j+.5)/200*2-1-m.y,q=-Math.sin(theta)*dx+Math.cos(theta)*dy,p=Math.cos(theta)*dx+Math.sin(theta)*dy,env=Math.exp(-(q*q+m.aspect*m.aspect*p*p)/(2*m.sigma*m.sigma)),arg=Math.PI*m.spatial_frequency*q,value=env*(m.type==='V1 simple Gabor cell'?Math.sin(arg):Math.cos(arg));weights[j*300+i]=value;peak=Math.max(peak,Math.abs(value));}
+    for(let i=0;i<weights.length;i++){const value=weights[i]/(peak||1),shade=value>=0?255:0;pixels.data[i*4]=pixels.data[i*4+1]=pixels.data[i*4+2]=shade;pixels.data[i*4+3]=Math.round(.85*255*Math.abs(value));}
+    c.putImageData(pixels,0,0);if(rfImageCache.size>16)rfImageCache.clear();rfImageCache.set(key,canvas);
+  }
+  context.save();context.imageSmoothingEnabled=true;context.drawImage(canvas,0,0,width,height);context.restore();
+}
+function drawRF(){const c=$('rf'),ctx=c.getContext('2d');ctx.fillStyle='#808080';ctx.fillRect(0,0,180,120);if(!$('reveal').checked){$('modelInfo').textContent='One simulated neuron. Infer its selectivity from stimulus responses.';return;}
+  const m=cameraRFModel;drawReceptiveFieldOverlay(ctx,m,180,120);$('modelInfo').textContent=m.type==='V1 simple Gabor cell'?'Odd-phase Gabor: one light-preferring lobe and one dark-preferring lobe.':'Complex-cell Gabor energy model. The overlay shows one of its two quadrature components.';
 }
 $('reveal').onchange=drawRF;drawRF();
 worker.onmessage=e=>{const m=e.data;
@@ -125,7 +136,8 @@ window.addEventListener('beforeunload',e=>{if(recording||saved){e.preventDefault
 function drawMonitor(){const s=stim,th=(s.orientation||0)*Math.PI/180,phase=(s.phase||0)*Math.PI/180+2*Math.PI*(s.temporal_frequency||0)*(clock-stimOnset);
   for(let j=0;j<120;j++)for(let i=0;i<180;i++){let v=128;if(s.type==='bar'){const x=(i+.5)/180*3-1.5-s.x,y=(j+.5)/120*2-1-s.y,q=-Math.sin(th)*x+Math.cos(th)*y,p=Math.cos(th)*x+Math.sin(th)*y;if(Math.abs(q)<=s.width/2&&Math.abs(p)<=s.length/2)v=Math.round(127.5*(1-s.contrast));}else if(s.type==='grating'){const x=(i+.5)/180*3-1.5-s.x,y=(j+.5)/120*2-1-s.y;if(x*x+y*y<=s.radius*s.radius){const q=-Math.sin(th)*x+Math.cos(th)*y;v=Math.round(127.5+127.5*s.contrast*Math.cos(Math.PI*s.spatial_frequency*q+phase));}}const n=(j*180+i)*4;image.data[n]=image.data[n+1]=image.data[n+2]=v;image.data[n+3]=255;}
   ic.putImageData(image,0,0);mc.imageSmoothingEnabled=true;mc.drawImage(imageCanvas,0,0,600,400);
-  if($('reveal').checked&&$('inputSource').value==='direct'){const m=cameraRFModel,cx=(m.x+1.5)/3*600,cy=(m.y+1)/2*400,rx=Math.max(12,2*m.sigma/(m.aspect||1)*200),ry=Math.max(12,2*m.sigma*200),rotation=(m.orientation||0)*Math.PI/180;mc.strokeStyle='#65e2c7';mc.lineWidth=1.5;mc.setLineDash([5,5]);mc.beginPath();mc.ellipse(cx,cy,rx,ry,rotation,0,Math.PI*2);mc.stroke();mc.setLineDash([]);mc.fillStyle='#06261ec9';mc.fillRect(9,9,98,21);mc.fillStyle='#96f8df';mc.font='11px system-ui';mc.fillText('RF center shown',16,24);}}
+  if($('reveal').checked&&$('inputSource').value==='direct')drawReceptiveFieldOverlay(mc,cameraRFModel);}
+
 let lastDraw=0,displayStarted=false,displayError='';
 function frame(now){requestAnimationFrame(frame);if(hidden||now-lastDraw<=30)return;try{drawMonitor();if($('inputSource').value==='direct')window.refreshVisualInput?.();drawTrace();lastDraw=now;if(displayError){displayError='';$('rigStatus').textContent='Rig running';}}catch(err){if(displayError!==err.message){displayError=err.message;$('rigStatus').textContent='Display error';$('scopeStatus').textContent='Display error: '+err.message;}}}
 function startDisplay(){if(displayStarted)return;displayStarted=true;updateControls();$('rigStatus').textContent='Rig running';requestAnimationFrame(frame);}

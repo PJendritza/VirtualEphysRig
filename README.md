@@ -18,7 +18,7 @@ Open http://localhost:8000/#exercise-1. Camera access requires HTTPS or localhos
 
 ## Exercises
 
-- **Exercise 1:** Explore a simulated dark-bar simple cell with webcam stimuli.
+- **Exercise 1:** Explore a simulated two-lobe simple Gabor cell with webcam stimuli.
 - **Exercise 2:** Present bars or gratings to study orientation tuning.
 - **Exercise 3:** Map the neuron's spatial receptive field with gratings presented at different positions.
 - **Exercise 4:** Identify a mystery neuron using uploaded or sample images, positional protocols, and the same raw-voltage recordings. Triple-R toggles instructor reveal mode; right-click a thumbnail to remove it and use Restore files to undo removals.
