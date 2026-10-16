@@ -7,8 +7,11 @@ const assets=new Map(),inputBuffer=document.createElement('canvas');
 inputBuffer.width=120;inputBuffer.height=80;
 const inputContext=inputBuffer.getContext('2d',{willReadFrequently:true});
 const curveFilters=buildCurveFilters(120,80);
-let model='color',lastInput=-Infinity,faceLast=-Infinity,imageRotation=0;
+let model='color',lastInput=-Infinity,faceLast=-Infinity,imageRotation=0,inputIdentity=null;
 function isImageAvailable(name){return assets.has(name)&&(!instructorSamples.has(assets.get(name))||$('showCameraRF').checked);}
+// Invalidate only discontinuous input changes. Position/size/rotation updates
+// form a continuous stream and must not clear drive or discard face results.
+function invalidateMysteryInput(){faceEpoch++;lastInput=faceLast=-Infinity;send('mysteryEpoch',{epoch:faceEpoch});}
 const example=`# Images × positions × repetitions.
 import random
 
@@ -49,11 +52,11 @@ $('imageFiles').onchange=async e=>{if(recording){$('imageStatus').textContent='S
 window.mysteryManual=()=>isImageAvailable($('imageChoice').value)?({type:'image',filename:$('imageChoice').value,x:position.x,y:position.y,size:Number($('imageSize').value),rotation:imageRotation}):({type:'blank'});
 $('imageChoice').onchange=()=>{syncGallery();manual();};
 for(const id of ['imageSize','imageX','imageY'])$(id).oninput=()=>{const x=Number($('imageX').value),y=Number($('imageY').value);if(!Number.isFinite(x)||!Number.isFinite(y))return;position={x:Math.max(-1.5,Math.min(1.5,x)),y:Math.max(-1,Math.min(1,y))};$('imageSizeOut').textContent=$('imageSize').value;if(stim.type!=='blank')manual();};
-window.mysteryStimulusChanged=s=>{faceEpoch++;send('mysteryEpoch',{epoch:faceEpoch});lastInput=-Infinity;if(s.type==='image'){imageRotation=s.rotation??0;position={x:s.x,y:s.y};$('imageX').value=Number(s.x.toFixed(2));$('imageY').value=Number(s.y.toFixed(2));$('imageSize').value=s.size;$('imageSizeOut').textContent=s.size;$('imageChoice').value=s.filename;syncGallery();}};
+window.mysteryStimulusChanged=s=>{const nextIdentity=s.type==='image'?'image:'+s.filename:s.type;if(nextIdentity!==inputIdentity&&$('inputSource').value==='direct')invalidateMysteryInput();inputIdentity=nextIdentity;if(s.type==='image'){imageRotation=s.rotation??0;position={x:s.x,y:s.y};$('imageX').value=Number(s.x.toFixed(2));$('imageY').value=Number(s.y.toFixed(2));$('imageSize').value=s.size;$('imageSizeOut').textContent=s.size;$('imageChoice').value=s.filename;syncGallery();}};
 window.mysteryDrawMonitor=()=>{ic.fillStyle='#808080';ic.fillRect(0,0,180,120);if(stim.type==='image'&&isImageAvailable(stim.filename)){const a=assets.get(stim.filename);if(a){const side=stim.size*60,scale=Math.min(side/a.width,side/a.height),w=a.width*scale,h=a.height*scale;ic.save();ic.translate((stim.x+1.5)*60,(stim.y+1)*60);ic.rotate((stim.rotation||0)*Math.PI/180);ic.drawImage(a,-w/2,-h/2,w,h);ic.restore();}}mc.drawImage(imageCanvas,0,0,600,400);if($('inputSource').value==='direct')window.mysteryInput(imageCanvas);};
 function sendDrive(value,timing={}){send('mysteryDrive',{value,epoch:faceEpoch,timing});}
 window.mysteryInput=async(canvas,timing={})=>{const now=performance.now();if(now-lastInput<30)return;lastInput=now;
-  if(model==='face'){if(!faceReady||faceBusy||now-faceLast<100)return;faceBusy=true;faceLast=now;const epoch=faceEpoch;const c=document.createElement('canvas');c.width=600;c.height=400;c.getContext('2d').drawImage(canvas,0,0,600,400);try{const bitmap=await createImageBitmap(c);if(!faceWorker){bitmap.close();faceBusy=false;return;}faceWorker.postMessage({type:'frame',epoch,bitmap},[bitmap]);}catch(err){faceBusy=false;faceStatus(err.message,true);}return;}
+  if(model==='face'){if(!faceReady||faceBusy||now-faceLast<100)return;faceBusy=true;faceLast=now;const epoch=faceEpoch;const c=document.createElement('canvas');c.width=600;c.height=400;c.getContext('2d').drawImage(canvas,0,0,600,400);try{const bitmap=await createImageBitmap(c);if(!faceWorker||epoch!==faceEpoch||model!=='face'){bitmap.close();faceBusy=false;return;}faceWorker.postMessage({type:'frame',epoch,capturedAt:now,captureWallMs:Date.now(),bitmap},[bitmap]);}catch(err){faceBusy=false;faceStatus(err.message,true);}return;}
   inputContext.drawImage(canvas,0,0,120,80);const data=inputContext.getImageData(0,0,120,80).data;sendDrive(model==='color'?colorDrive(data,120,80):curveDrive(data,curveFilters),timing);
 };
 // Draw model sensitivity over a clean input copy; never feed this overlay back.
@@ -75,10 +78,10 @@ function updateField(){
   for(let j=0;j<80;j++)for(let i=0;i<120;i++){const n=j*120+i,x=(i+.5)/120*3-1.5,y=(j+.5)/80*2-1,value=model==='curve'?weights[n]:Math.exp(-.5*(((x-m.x)/m.sx)**2+((y-m.y)/m.sy)**2)),strength=Math.abs(value),rgb=model==='color'?[255,220,0]:[0,0,0];im.data.set([...rgb,strength<.07?0:Math.round(strength*255)],n*4);}ctx.putImageData(im,0,0);
 }
 window.mysteryOverlay=ctx=>{if(!$('showCameraRF').checked)return;ctx.save();ctx.imageSmoothingEnabled=true;ctx.drawImage(field,0,0,600,400);if(model!=='face'){ctx.fillStyle='#07121ae6';ctx.fillRect(8,8,570,24);ctx.fillStyle='#d9f6ed';ctx.font='12px system-ui';ctx.textAlign='left';ctx.fillText(model==='color'?'RF: yellow preference · Gaussian spatial sensitivity':'RF: dark-sensitive arc',15,24);}ctx.restore();};
-function chooseModel(){if(recording){$('mysteryType').value=model;return;}if(compiling)cancelCompile();send('stop',{preserveStimulus:true});model=$('mysteryType').value;faceEpoch++;send('mysteryModel',{model,parameters:MODEL[model],epoch:faceEpoch});$('session').value='MysteryNeuron'+(['color','curve','face'].indexOf(model)+1);updateField();updateMysteryLabels();window.refreshVisualInput?.();if(model==='face')ensureFace().then(()=>{if(model==='face')faceStatus('Face detector ready. Upload human face images to test.');}).catch(e=>faceStatus(e.message,true));else faceStatus('Pixel-driven '+model+' model. Triple-R toggles reveal mode.');}
+function chooseModel(){if(recording){$('mysteryType').value=model;return;}if(compiling)cancelCompile();send('stop',{preserveStimulus:true});model=$('mysteryType').value;faceEpoch++;lastInput=faceLast=-Infinity;send('mysteryModel',{model,parameters:MODEL[model],epoch:faceEpoch});$('session').value='MysteryNeuron'+(['color','curve','face'].indexOf(model)+1);updateField();updateMysteryLabels();window.refreshVisualInput?.();if(model==='face')ensureFace().then(()=>{if(model==='face')faceStatus('Face detector ready. Upload human face images to test.');}).catch(e=>faceStatus(e.message,true));else faceStatus('Pixel-driven '+model+' model. Triple-R toggles reveal mode.');}
 $('mysteryType').onchange=chooseModel;
 const originalWorkerMessage=worker.onmessage;worker.onmessage=e=>{originalWorkerMessage(e);if(e.data.type==='recording'){const locked=e.data.active;$('mysteryType').disabled=locked;$('imageFiles').disabled=locked;$('uploadImages').disabled=locked;$('restoreImages').disabled=locked||!removedAssets.size;closeFileMenu();$('inputSource').disabled=locked;}};
-const sourceChanged=$('inputSource').onchange;$('inputSource').onchange=()=>{faceEpoch++;send('mysteryEpoch',{epoch:faceEpoch});sourceChanged();};
+const sourceChanged=$('inputSource').onchange;$('inputSource').onchange=()=>{invalidateMysteryInput();sourceChanged();};
 // Reveal is a mode: changing neurons does not turn it off.
 const originalSetRFRevealed=setRFRevealed;
 setRFRevealed=value=>{originalSetRFRevealed(value);closeFileMenu();if(!value&&stim.type==='image'&&!isImageAvailable(stim.filename)){if(compiling)cancelCompile();send('stop');}else if(!value&&protocolRunning){send('stop',{preserveStimulus:true});}rebuildGallery();updateMysteryLabels();try{sessionStorage.setItem('mystery-reveal',String(value));}catch{}};
