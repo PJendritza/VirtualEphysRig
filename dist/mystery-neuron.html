@@ -390,8 +390,8 @@ $('download').onclick=()=>{$('download').disabled=true;send('export');};
 function setRFRevealed(value){$('reveal').checked=value;$('showCameraRF').checked=value;drawRF();window.refreshVisualInput?.();}
 let rfKeyTimes=[];
 document.addEventListener('keydown',e=>{const target=e.target,editing=target.matches?.('input,textarea,select')||target.isContentEditable;if(editing||e.repeat||e.ctrlKey||e.altKey||e.metaKey||e.key.toLowerCase()!=='r')return;const now=performance.now();rfKeyTimes=rfKeyTimes.filter(time=>now-time<900);rfKeyTimes.push(now);if(rfKeyTimes.length===3){setRFRevealed(!$('showCameraRF').checked);rfKeyTimes=[];}});
-function classicClick(){const now=audioCtx.currentTime,osc=audioCtx.createOscillator(),gain=audioCtx.createGain();osc.frequency.value=1600;gain.gain.setValueAtTime(.075,now);gain.gain.exponentialRampToValueAtTime(.0001,now+.028);osc.connect(gain);gain.connect(audioCtx.destination);osc.onended=()=>{osc.disconnect();gain.disconnect();};osc.start(now);osc.stop(now+.03);}
-function softSpike(){const fs=audioCtx.sampleRate,buffer=audioCtx.createBuffer(1,Math.round(fs*.008),fs),samples=buffer.getChannelData(0),width=.00055;for(let i=0;i<samples.length;i++){const t=i/fs;samples[i]=-Math.exp(-.5*((t-.0025)/width)**2)+.45*Math.exp(-.5*((t-.00349)/(1.4*width))**2);}const source=audioCtx.createBufferSource(),filter=audioCtx.createBiquadFilter(),gain=audioCtx.createGain();source.buffer=buffer;filter.type='lowpass';filter.frequency.value=600;gain.gain.value=.1*(.85+Math.random()*.3);source.connect(filter).connect(gain).connect(audioCtx.destination);source.onended=()=>{source.disconnect();filter.disconnect();gain.disconnect();};source.start();}
+function classicClick(){const now=audioCtx.currentTime,osc=audioCtx.createOscillator(),gain=audioCtx.createGain();osc.frequency.value=1600;gain.gain.setValueAtTime(.09,now);gain.gain.exponentialRampToValueAtTime(.0001,now+.028);osc.connect(gain);gain.connect(audioCtx.destination);osc.onended=()=>{osc.disconnect();gain.disconnect();};osc.start(now);osc.stop(now+.03);}
+function softSpike(){const fs=audioCtx.sampleRate,buffer=audioCtx.createBuffer(1,Math.round(fs*.008),fs),samples=buffer.getChannelData(0),width=.00055;for(let i=0;i<samples.length;i++){const t=i/fs;samples[i]=-Math.exp(-.5*((t-.0025)/width)**2)+.45*Math.exp(-.5*((t-.00349)/(1.4*width))**2);}const source=audioCtx.createBufferSource(),filter=audioCtx.createBiquadFilter(),gain=audioCtx.createGain();source.buffer=buffer;filter.type='lowpass';filter.frequency.value=600;gain.gain.value=.12*(.85+Math.random()*.3);source.connect(filter).connect(gain).connect(audioCtx.destination);source.onended=()=>{source.disconnect();filter.disconnect();gain.disconnect();};source.start();}
 function audioClick(){if(!sound||!audioCtx||audioCtx.state!=='running')return;(audioVoice==='soft'?softSpike:classicClick)();}
 function startAudioKeepalive(){if(audioKeepalive||!audioCtx)return;const osc=audioCtx.createOscillator(),gain=audioCtx.createGain();osc.frequency.value=90;gain.gain.value=.00001;osc.connect(gain);gain.connect(audioCtx.destination);osc.start();audioKeepalive={osc,gain};}
 function stopAudioKeepalive(){if(!audioKeepalive)return;audioKeepalive.osc.stop();audioKeepalive.osc.disconnect();audioKeepalive.gain.disconnect();audioKeepalive=null;}
@@ -406,7 +406,8 @@ audioButton.addEventListener('contextmenu',e=>{e.preventDefault();updateAudioMen
 audioMenu.onclick=async e=>{const button=e.target.closest('[data-sound]');if(!button)return;audioVoice=button.dataset.sound;try{localStorage.setItem('visual-rig-sound',audioVoice);}catch{}closeAudioMenu();if(sound){await unlockAudio();audioClick();}};
 document.addEventListener('pointerdown',e=>{if(!audioMenu.hidden&&!audioMenu.contains(e.target))closeAudioMenu();});
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeAudioMenu();});
-// Grayscale RFs at 95% alpha, with tails below 10% of the peak cut off.
+// Pure black/white RF lobes; alpha is 90% times normalized magnitude.
+// Values below 5% of peak magnitude are fully transparent.
 // This affects the reveal drawing only, not the neuron's actual filter.
 const rfImageCache=new Map();
 function drawReceptiveFieldOverlay(context,m,width=600,height=400){
@@ -414,7 +415,7 @@ function drawReceptiveFieldOverlay(context,m,width=600,height=400){
   let canvas=rfImageCache.get(key);
   if(!canvas){canvas=document.createElement('canvas');canvas.width=300;canvas.height=200;const c=canvas.getContext('2d'),pixels=c.createImageData(300,200),weights=new Float32Array(60000),theta=m.orientation*Math.PI/180;let peak=0;
     for(let j=0;j<200;j++)for(let i=0;i<300;i++){const dx=(i+.5)/300*3-1.5-m.x,dy=(j+.5)/200*2-1-m.y,q=-Math.sin(theta)*dx+Math.cos(theta)*dy,p=Math.cos(theta)*dx+Math.sin(theta)*dy,env=Math.exp(-(q*q+m.aspect*m.aspect*p*p)/(2*m.sigma*m.sigma)),arg=Math.PI*m.spatial_frequency*q,value=env*(m.type==='V1 simple Gabor cell'?Math.sin(arg):Math.cos(arg));weights[j*300+i]=value;peak=Math.max(peak,Math.abs(value));}
-    for(let i=0;i<weights.length;i++){const value=weights[i]/(peak||1),shade=Math.round(127.5*(1+value));pixels.data[i*4]=pixels.data[i*4+1]=pixels.data[i*4+2]=shade;pixels.data[i*4+3]=Math.abs(value)<.10?0:Math.round(.95*255);}
+    for(let i=0;i<weights.length;i++){const value=weights[i]/(peak||1),shade=value>=0?255:0;pixels.data[i*4]=pixels.data[i*4+1]=pixels.data[i*4+2]=shade;pixels.data[i*4+3]=Math.abs(value)<.05?0:Math.round(.90*255*Math.abs(value));}
     c.putImageData(pixels,0,0);if(rfImageCache.size>16)rfImageCache.clear();rfImageCache.set(key,canvas);
   }
   context.save();context.imageSmoothingEnabled=true;context.drawImage(canvas,0,0,width,height);context.restore();
