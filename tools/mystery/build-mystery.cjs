@@ -14,8 +14,8 @@ acq=swap(acq,"if(m.type==='stimulus')",`if(m.type==='mysteryModel'){engine.confi
   if(m.type==='stimulus')`);
 const acquisition=engine+'\n'+read('exercise-one-model.js')+'\n'+read('exercise-two-model.js')+'\n'+acq;
 let py=read('python-worker.js');
-py=swap(py,'def blank(duration=0.5):',`def image(filename, duration=1, x=0, y=0, size=0.5):
-    _segments.append({'duration':duration,'stimulus':{'type':'image','filename':filename,'x':x,'y':y,'size':size}})
+py=swap(py,'def blank(duration=0.5):',`def image(filename, duration=1, x=0, y=0, size=0.5, rotation=0):
+    _segments.append({'duration':duration,'stimulus':{'type':'image','filename':filename,'x':x,'y':y,'size':size,'rotation':rotation}})
     if len(_segments)>1000: raise ValueError('Maximum 1,000 segments.')
 
 def blank(duration=0.5):`);
@@ -23,7 +23,7 @@ let app=read('app.js');
 app=swap(app,"new Worker('acquisition-worker.js')","makeWorker(ACQUISITION_SOURCE)");
 app=swap(app,"new Worker('python-worker.js')","makeWorker(PYTHON_SOURCE)");
 app=swap(app,"if(!s||!['blank','grating','bar'].includes(s.type))","if(!s||!['blank','grating','bar','image'].includes(s.type))");
-app=swap(app,"if(s.type==='bar'){s.orientation=",`if(s.type==='image'){if(!assets.has(s.filename))throw Error('Unknown image: '+s.filename);s.x=number(s.x,'x',-1.5,1.5);s.y=number(s.y,'y',-1,1);s.size=number(s.size,'size',.05,2);}
+app=swap(app,"if(s.type==='bar'){s.orientation=",`if(s.type==='image'){if(!isImageAvailable(s.filename))throw Error('Image is unavailable: '+s.filename+'. Upload it or enable reveal mode for instructor samples.');s.x=number(s.x,'x',-1.5,1.5);s.y=number(s.y,'y',-1,1);s.size=number(s.size,'size',.05,2);s.rotation=((number(s.rotation??0,'rotation',-36000,36000)%360)+360)%360;}
     if(s.type==='bar'){s.orientation=`);
 // The original manual events call this adapter, preserving existing drag behavior.
 app=swap(app,'function manualStim(){','function manualStim(){if(window.mysteryManual)return window.mysteryManual();');
@@ -34,7 +34,7 @@ let camera=read('camera.js');
 camera=swap(camera,"function drawRFOverlay(){","function drawRFOverlay(){if(window.mysteryOverlay){window.mysteryOverlay(vc);return;}");
 camera=swap(camera,"worker.postMessage({type:'cameraFrame',gray,timing:{capture_wall_ms:Date.now(),camera_media_time_s:mediaTime}},[gray.buffer]);","window.mysteryInput?.(processing,{capture_wall_ms:Date.now(),camera_media_time_s:mediaTime});");
 let html=read('index.html');
-html=swap(html,'<link rel="stylesheet" href="style.css">','<style>'+read('style.css')+`\n.imageGallery{display:flex;gap:6px;overflow:auto;padding:8px 0}.imageGallery button{flex:0 0 78px;padding:4px;background:#172735;color:#b7c7d4;font-size:10px}.imageGallery img{width:68px;height:48px;object-fit:contain;background:#808080}.imageGallery button[aria-pressed=true]{outline:2px solid #75dcc3}.imageUpload{margin-top:12px}.imageUpload input{max-width:100%}.imageUpload label{display:block}.imageControls{display:grid;grid-template-columns:minmax(120px,1fr) 90px 90px;align-items:end;gap:12px;margin-top:10px}.imageControls input{width:100%;box-sizing:border-box}.imageControls label{min-width:0}.uploadActions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}#imageFiles{display:none!important}.fileMenu{position:fixed;z-index:10000;padding:6px;border:1px solid #487083;border-radius:8px;background:#152530}.fileMenu[hidden]{display:none}.fileMenu button{display:block}.imageGallery button:focus-visible{outline:2px solid #75dcc3}@media(max-width:460px){.imageControls{grid-template-columns:1fr 1fr}.imageControls label:first-child{grid-column:1/-1}}.stimulusPicker,.stimulusPrimary,.gratingControls,.barControls{display:none!important}.imageUpload .hint{margin:4px 0}.version{font-size:12px!important}\n</style>`);
+html=swap(html,'<link rel="stylesheet" href="style.css">','<style>'+read('style.css')+`\n.protocolBadge{display:flex;align-items:center;gap:7px}.protocolInfo{border:1px solid #617d90;background:#203747;color:#dbf4ff;width:23px;height:23px;padding:0;border-radius:50%;font:600 14px Georgia,serif}.protocolHelp{padding:12px;border:1px solid #4a5f70;border-radius:7px;margin-bottom:12px;background:#101c27;color:#bfd2de;font-size:12px}.protocolHelp[hidden]{display:none}.protocolHelp code{font-size:11px}.protocolHelp pre{white-space:pre-wrap}.imageGallery{display:flex;gap:6px;overflow:auto;padding:8px 0}.imageGallery button{flex:0 0 78px;padding:4px;background:#172735;color:#b7c7d4;font-size:10px}.imageGallery img{width:68px;height:48px;object-fit:contain;background:#808080}.imageGallery button[aria-pressed=true]{outline:2px solid #75dcc3}.imageUpload{margin-top:12px}.imageUpload input{max-width:100%}.imageUpload label{display:block}.imageControls{display:grid;grid-template-columns:minmax(120px,1fr) 90px 90px;align-items:end;gap:12px;margin-top:10px}.imageControls input{width:100%;box-sizing:border-box}.imageControls label{min-width:0}.uploadActions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}#imageFiles{display:none!important}.fileMenu{position:fixed;z-index:10000;padding:6px;border:1px solid #487083;border-radius:8px;background:#152530}.fileMenu[hidden]{display:none}.fileMenu button{display:block}.imageGallery button:focus-visible{outline:2px solid #75dcc3}@media(max-width:460px){.imageControls{grid-template-columns:1fr 1fr}.imageControls label:first-child{grid-column:1/-1}}.stimulusPicker,.stimulusPrimary,.gratingControls,.barControls{display:none!important}.imageUpload .hint{margin:4px 0}.version{font-size:12px!important}\n</style>`);
 html=html.replace(/prototype \d+/,'mystery exercise');
 // Keep the shared Exercise selector in its original slot on every page.
 html=swap(html,'<label class="neuronSlot" aria-hidden="true">Neuron<select disabled tabindex="-1"><option>MysteryNeuron1</option></select></label>','<label>Neuron<select id="mysteryType"><option value="color">MysteryNeuron1</option><option value="curve">MysteryNeuron2</option><option value="face">MysteryNeuron3</option></select></label>');
@@ -46,6 +46,18 @@ html=swap(html,'Wheel over the monitor to rotate the stimulus. Drag it to change
 html=html.replace('Write a sequence, then run it on the rig. <code>grating(...)</code> or <code>bar(...)</code> presents a stimulus;','Write a sequence, then run it on the rig. <code>image(filename, ...)</code> presents an uploaded or sample image;');
 html=html.replace('<code>grating(orientation=0, duration=1, spatial_frequency=5, temporal_frequency=2, phase=0, x=0, y=0, size=0.9)</code>','<code>image("grating_1.png", duration=1, x=0, y=0, size=0.6)</code>');
 html=html.replace('Orientation describes bar angle (0° = horizontal). Phase is in degrees. Spatial frequency is cycles per screen height. Position and size use screen half-height units; x spans −1.5…1.5 and y spans −1…1.','Position and square image size use screen half-height units; x spans −1.5…1.5 and y spans −1…1 (positive downward). Size 1 fills half the screen height. Images retain their aspect ratio.');
+html=swap(html,'<span class="badge">PYTHON</span>','<div class="protocolBadge"><span class="badge">PYTHON</span><button id="protocolInfo" type="button" class="protocolInfo" aria-label="Python protocol help" aria-expanded="false" aria-controls="protocolHelp" title="What can I do in Python?">i</button></div>');
+html=html.replace(/<details><summary>Available stimulus parameters<\/summary>[\s\S]*?<\/details>/,'');
+html=swap(html,'<textarea id="code"',`<div id="protocolHelp" class="protocolHelp" role="region" aria-label="Python protocol options" hidden>
+<p><strong>Present an image</strong><br><code>image("my_image.png", duration=1, x=0, y=0, size=0.6, rotation=0)</code></p>
+<p>Use an exact filename from the image library. Upload PNG, JPEG or WebP images. <code>blank(duration=0.5)</code> inserts a gray interval. Durations are seconds.</p>
+<p><strong>Position and size:</strong> x spans −1.5…1.5; y spans −1…1, positive downward. Size is the longest side of the image in screen half-height units; size 1 fills half the screen height. Aspect ratio is preserved.</p>
+<p><strong>Rotation:</strong> <code>rotation</code> is clockwise degrees around the image center. 0 keeps its original orientation. For example:</p>
+<pre><code>for angle in range(0, 360, 30):
+    blank(duration=0.5)
+    image("my_curve.png", duration=1,
+          x=0, y=0, size=0.8, rotation=angle)</code></pre>
+<p>Replace <code>my_curve.png</code> with your uploaded filename. Combine images, positions, sizes and rotations using Python loops, lists, <code>math</code>, and <code>random</code>. The code builds a sequence before presentation. Maximum: 300 seconds / 1,000 segments. Image name, position, size and rotation are saved with each presentation.</p></div><textarea id="code"`);
 const scripts=['engine.js','scope.js','recording.js','exercise-one-model.js','exercise-two-model.js','app.js','camera.js','scope-ui.js','monitor-window.js','camera-window.js','waveform-window.js','panel-resize.js'];
 const inline=s=>'<script>'+s.replace(/<\/script/gi,'<\\/script')+'</script>';
 const models=fs.readFileSync(path.join(__dirname,'mystery-models.js'),'utf8');
