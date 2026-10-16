@@ -103,15 +103,15 @@ audioButton.addEventListener('contextmenu',e=>{e.preventDefault();updateAudioMen
 audioMenu.onclick=async e=>{const button=e.target.closest('[data-sound]');if(!button)return;audioVoice=button.dataset.sound;try{localStorage.setItem('visual-rig-sound',audioVoice);}catch{}closeAudioMenu();if(sound){await unlockAudio();audioClick();}};
 document.addEventListener('pointerdown',e=>{if(!audioMenu.hidden&&!audioMenu.contains(e.target))closeAudioMenu();});
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeAudioMenu();});
-// Smooth grayscale RFs. Maximum lobe opacity is 85%; zero-weight regions
-// stay transparent so this visualization never masks the whole camera image.
+// Grayscale RFs at 95% alpha, with tails below 10% of the peak cut off.
+// This affects the reveal drawing only, not the neuron's actual filter.
 const rfImageCache=new Map();
 function drawReceptiveFieldOverlay(context,m,width=600,height=400){
   const key=JSON.stringify([m.type,m.orientation,m.spatial_frequency,m.sigma,m.aspect,m.x,m.y]);
   let canvas=rfImageCache.get(key);
   if(!canvas){canvas=document.createElement('canvas');canvas.width=300;canvas.height=200;const c=canvas.getContext('2d'),pixels=c.createImageData(300,200),weights=new Float32Array(60000),theta=m.orientation*Math.PI/180;let peak=0;
     for(let j=0;j<200;j++)for(let i=0;i<300;i++){const dx=(i+.5)/300*3-1.5-m.x,dy=(j+.5)/200*2-1-m.y,q=-Math.sin(theta)*dx+Math.cos(theta)*dy,p=Math.cos(theta)*dx+Math.sin(theta)*dy,env=Math.exp(-(q*q+m.aspect*m.aspect*p*p)/(2*m.sigma*m.sigma)),arg=Math.PI*m.spatial_frequency*q,value=env*(m.type==='V1 simple Gabor cell'?Math.sin(arg):Math.cos(arg));weights[j*300+i]=value;peak=Math.max(peak,Math.abs(value));}
-    for(let i=0;i<weights.length;i++){const value=weights[i]/(peak||1),shade=value>=0?255:0;pixels.data[i*4]=pixels.data[i*4+1]=pixels.data[i*4+2]=shade;pixels.data[i*4+3]=Math.round(.85*255*Math.abs(value));}
+    for(let i=0;i<weights.length;i++){const value=weights[i]/(peak||1),shade=Math.round(127.5*(1+value));pixels.data[i*4]=pixels.data[i*4+1]=pixels.data[i*4+2]=shade;pixels.data[i*4+3]=Math.abs(value)<.10?0:Math.round(.95*255);}
     c.putImageData(pixels,0,0);if(rfImageCache.size>16)rfImageCache.clear();rfImageCache.set(key,canvas);
   }
   context.save();context.imageSmoothingEnabled=true;context.drawImage(canvas,0,0,width,height);context.restore();
